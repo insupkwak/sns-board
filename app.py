@@ -276,6 +276,7 @@ def me():
 def list_posts():
     """최신글 상단, 무한스크롤용 offset/limit."""
     category = request.args.get("category")
+    search = (request.args.get("search") or "").strip()
     try:
         offset = max(0, int(request.args.get("offset", 0)))
         limit = min(50, max(1, int(request.args.get("limit", 10))))
@@ -288,10 +289,15 @@ def list_posts():
         "SELECT p.*, u.nickname FROM posts p "
         "JOIN users u ON u.id = p.user_id "
     )
-    params = []
+    where, params = [], []
     if category and category in CATEGORIES:
-        sql += "WHERE p.category = ? "
+        where.append("p.category = ?")
         params.append(category)
+    if search:
+        where.append("(p.content LIKE ? OR u.nickname LIKE ?)")
+        params += [f"%{search}%", f"%{search}%"]
+    if where:
+        sql += "WHERE " + " AND ".join(where) + " "
     sql += "ORDER BY p.id DESC LIMIT ? OFFSET ?"
     params += [limit, offset]
 

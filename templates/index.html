@@ -11,134 +11,133 @@
 
         <!-- 왼쪽 메뉴 -->
         <aside class="left-rail">
-            <a class="logo" href="/"><span class="logo-mark"></span>SNS <strong>Board</strong></a>
+            <a href="#" class="logo" data-view="home"><span class="logo-mark"></span><span>SNS <strong>Board</strong></span></a>
             <nav class="nav-list">
-                <a class="nav-item active" href="/"><span class="nav-ico">🏠</span> 홈</a>
-                <a class="nav-item" href="/discovery"><span class="nav-ico">🧭</span> 탐색</a>
-                <a class="nav-item" href="/discovery"><span class="nav-ico">🔥</span> 트렌드</a>
-                <a class="nav-item" href="/media"><span class="nav-ico">📰</span> 미디어</a>
+                <button class="nav-item active" data-view="home"><span class="nav-ico">🏠</span> 홈</button>
+                <button class="nav-item" data-view="explore"><span class="nav-ico">🧭</span> 탐색</button>
+                <button class="nav-item" data-view="trends"><span class="nav-ico">🔥</span> 트렌드</button>
+                <button class="nav-item" data-view="boards"><span class="nav-ico">🗂</span> 게시판</button>
+                <button class="nav-item" data-view="notifications"><span class="nav-ico">🔔</span> 알림</button>
+                <button class="nav-item" data-view="profile"><span class="nav-ico">👤</span> 내 정보</button>
+            </nav>
+            <div class="nav-divider"></div>
+            <nav class="nav-list nav-secondary">
+                <a class="nav-item" href="/discovery"><span class="nav-ico">📰</span> 미디어 둘러보기</a>
+                <a class="nav-item" href="/media"><span class="nav-ico">✍</span> 미디어 운영</a>
                 <a class="nav-item" href="/promotions"><span class="nav-ico">📣</span> 홍보</a>
                 <a class="nav-item" href="/admin" id="adminLink" hidden><span class="nav-ico">⚙</span> 관리자</a>
             </nav>
-            <button class="btn btn-primary btn-block" id="composeBtn">글쓰기</button>
-            <div class="left-foot">
-                <div class="auth-area" id="auth-area"><!-- JS 렌더 --></div>
-            </div>
+            <button class="btn btn-primary nav-write-btn" id="leftWriteBtn">글쓰기</button>
+            <div class="left-foot"><div class="auth-area" id="authArea"></div></div>
         </aside>
 
         <!-- 중앙 피드 -->
         <main class="feed">
+            <section class="top-mobile-brand">
+                <a href="#" class="logo" data-view="home"><span class="logo-mark"></span><span>SNS <strong>Board</strong></span></a>
+                <button class="btn btn-secondary" id="mobileAuthBtn">로그인</button>
+            </section>
+
             <header class="feed-header">
-                <h1 class="feed-title">홈</h1>
-                <p class="feed-subtitle">지금 당신의 관심사에서 가장 많이 이야기되는 글</p>
+                <h1 class="feed-title" id="viewTitle">홈</h1>
+                <p class="feed-subtitle" id="viewSubtitle">관심 있는 이야기와 최신 글을 확인하세요.</p>
             </header>
 
-            <!-- 관심사/카테고리 칩 -->
-            <nav id="category-nav" class="chip-row">
-                <button class="cat chip active" data-category="">전체</button>
-                {% for c in categories %}
-                <button class="cat chip" data-category="{{ c }}">{{ c }}</button>
-                {% endfor %}
-            </nav>
-
-            <!-- 글쓰기 (로그인 시) -->
-            <section id="composer" class="composer" hidden>
-                <textarea id="post-content" placeholder="무슨 이야기를 나누고 싶나요?"></textarea>
-                <div class="composer-actions">
-                    <button id="post-submit" class="btn btn-primary">게시하기</button>
+            <section class="mobile-search-wrap">
+                <div class="search-box">
+                    <span class="search-icon">⌕</span>
+                    <input id="mobileSearchInput" type="search" placeholder="관심사, 게시판, 글 검색">
                 </div>
             </section>
 
-            <p id="login-hint" class="login-hint" hidden>글을 작성하려면 로그인하세요.</p>
+            <section class="chip-row" id="interestChips">
+                <button class="chip active" data-category="all">전체</button>
+                {% for c in categories %}
+                <button class="chip" data-category="{{ c }}">{{ c }}</button>
+                {% endfor %}
+            </section>
 
-            <div id="posts" class="posts"></div>
-            <div id="loader" class="loader" hidden>불러오는 중…</div>
-            <div id="end" class="end" hidden>마지막 글입니다.</div>
+            <section class="composer" id="composer" hidden>
+                <div class="composer-main">
+                    <div class="avatar avatar-small" id="composerAvatar"></div>
+                    <textarea id="postContent" placeholder="무슨 이야기를 나누고 싶나요?"></textarea>
+                </div>
+                <div class="composer-actions">
+                    <div class="composer-tools">
+                        <span class="tool-hint" id="composerCategory">#전체</span>
+                    </div>
+                    <button class="btn btn-primary" id="submitPostBtn">게시하기</button>
+                </div>
+            </section>
+
+            <p class="login-hint" id="loginHint" hidden>글을 작성하려면 로그인하세요.</p>
+
+            <section id="viewContainer">
+                <div id="postList" class="post-list"></div>
+                <div id="feedLoader" class="feed-loader" hidden>불러오는 중…</div>
+                <div id="emptyState" class="empty-state" hidden></div>
+            </section>
         </main>
 
-        <!-- 오른쪽 트렌드 패널 -->
+        <!-- 오른쪽 패널 -->
         <aside class="right-rail">
-            <div class="search-box">
-                <span>🔍</span>
-                <input type="text" id="globalSearch" placeholder="관심사, 게시판, 글 검색">
+            <div class="search-box right-search">
+                <span class="search-icon">⌕</span>
+                <input id="rightSearchInput" type="search" placeholder="검색">
             </div>
-            <div class="side-card">
-                <h3 class="side-card-title">지금 뜨는 주제</h3>
-                <a class="trend-item" href="/discovery"><span class="trend-rank">1</span><span class="trend-title">#AI코딩</span><span class="trend-meta">오늘 글 328</span></a>
-                <a class="trend-item" href="/discovery"><span class="trend-rank">2</span><span class="trend-title">#해운물류</span><span class="trend-meta">오늘 글 211</span></a>
-                <a class="trend-item" href="/discovery"><span class="trend-rank">3</span><span class="trend-title">#투자</span><span class="trend-meta">오늘 글 187</span></a>
-                <a class="trend-item" href="/discovery"><span class="trend-rank">4</span><span class="trend-title">#여행추천</span><span class="trend-meta">오늘 글 142</span></a>
-                <a class="trend-item" href="/discovery"><span class="trend-rank">5</span><span class="trend-title">#회사생활</span><span class="trend-meta">오늘 글 98</span></a>
-            </div>
-            <div class="side-card">
-                <h3 class="side-card-title">추천 게시판 · 채널</h3>
-                <a class="side-link" href="/discovery"><span>둘러보기에서 채널 찾기</span><span>→</span></a>
-                <a class="side-link" href="/media"><span>내 미디어 채널 운영</span><span>→</span></a>
-            </div>
-            <div class="side-card">
-                <h3 class="side-card-title">인기 태그</h3>
-                <div class="side-tags">
-                    {% for c in categories %}<a class="chip" href="/discovery">#{{ c }}</a>{% endfor %}
-                </div>
-            </div>
+            <section class="side-card">
+                <h2 class="side-card-title">지금 뜨는 주제</h2>
+                <div id="trendList" class="trend-list"></div>
+            </section>
+            <section class="side-card">
+                <h2 class="side-card-title">추천 게시판</h2>
+                <div id="recommendedBoards" class="recommended-boards"></div>
+            </section>
+            <section class="side-card">
+                <h2 class="side-card-title">인기 태그</h2>
+                <div id="popularTags" class="tag-cloud"></div>
+            </section>
         </aside>
     </div>
 
     <!-- 모바일 하단 탭 -->
     <nav class="mobile-tabbar">
-        <a class="tab-item active" href="/"><span class="ti-ico">🏠</span>홈</a>
-        <a class="tab-item" href="/discovery"><span class="ti-ico">🧭</span>탐색</a>
-        <button class="tab-item" id="composeBtnMobile"><span class="tab-create">＋</span></button>
-        <a class="tab-item" href="/media"><span class="ti-ico">📰</span>미디어</a>
-        <a class="tab-item" href="/promotions"><span class="ti-ico">📣</span>홍보</a>
+        <button class="tab-item active" data-view="home"><span class="ti-ico">🏠</span>홈</button>
+        <button class="tab-item" data-view="explore"><span class="ti-ico">🧭</span>탐색</button>
+        <button class="tab-item tab-create" data-action="write">＋</button>
+        <button class="tab-item" data-view="trends"><span class="ti-ico">🔥</span>트렌드</button>
+        <button class="tab-item" data-view="profile"><span class="ti-ico">👤</span>내정보</button>
     </nav>
 
     <!-- 로그인 / 회원가입 모달 -->
-    <div id="modal" class="modal" hidden>
-        <div class="modal-box">
-            <div class="tabs">
-                <button type="button" id="tab-login" class="tab active">로그인</button>
-                <button type="button" id="tab-register" class="tab">회원가입</button>
+    <div id="authModal" class="modal-backdrop" hidden>
+        <div class="modal-card">
+            <div class="modal-head">
+                <div class="tabs">
+                    <button type="button" id="tabLogin" class="tab active">로그인</button>
+                    <button type="button" id="tabRegister" class="tab">회원가입</button>
+                </div>
             </div>
-
-            <form id="login-form" class="auth-form">
-                <input type="email" name="email" placeholder="이메일" required>
-                <input type="password" name="password" placeholder="비밀번호" required>
-                <button type="submit" class="btn btn-primary">로그인</button>
-            </form>
-
-            <form id="register-form" class="auth-form" hidden>
-                <input type="text" name="nickname" placeholder="별명" maxlength="20" required>
-                <input type="email" name="email" placeholder="이메일 주소" required>
-                <input type="password" name="password" placeholder="비밀번호 (4자 이상)" required>
-                <input type="password" name="password2" placeholder="비밀번호 확인" required>
-                <button type="submit" class="btn btn-primary">회원가입</button>
-            </form>
-
-            <p id="auth-error" class="auth-error"></p>
-            <button type="button" id="modal-close" class="modal-close">닫기</button>
+            <div class="modal-body">
+                <form id="loginForm" class="auth-form">
+                    <input class="form-input" type="email" name="email" placeholder="이메일" required>
+                    <input class="form-input" type="password" name="password" placeholder="비밀번호" required>
+                    <button type="submit" class="btn btn-primary btn-block">로그인</button>
+                </form>
+                <form id="registerForm" class="auth-form" hidden>
+                    <input class="form-input" type="text" name="nickname" placeholder="별명" maxlength="20" required>
+                    <input class="form-input" type="email" name="email" placeholder="이메일 주소" required>
+                    <input class="form-input" type="password" name="password" placeholder="비밀번호 (4자 이상)" required>
+                    <input class="form-input" type="password" name="password2" placeholder="비밀번호 확인" required>
+                    <button type="submit" class="btn btn-primary btn-block">회원가입</button>
+                </form>
+                <p id="authError" class="auth-error"></p>
+                <button type="button" id="authClose" class="modal-close">닫기</button>
+            </div>
         </div>
     </div>
 
     <span class="version">v{{ version }}</span>
     <script src="{{ url_for('static', filename='js/app.js') }}?v={{ js_v }}"></script>
-    <script>
-    // 관리자 메뉴 노출
-    fetch("/api/me").then(r=>r.json()).then(d=>{
-      if (d && d.user && d.user.is_admin) document.getElementById("adminLink").hidden = false;
-    }).catch(()=>{});
-    // 글쓰기 버튼 → 작성칸 포커스(로그인 시) 또는 로그인 모달
-    function goCompose(){
-      var c = document.getElementById("composer");
-      if (c && !c.hidden) { var t=document.getElementById("post-content"); c.scrollIntoView({behavior:"smooth"}); t && t.focus(); }
-      else { var b=document.querySelector("#auth-area .primary, #auth-area button"); b && b.click(); }
-    }
-    document.getElementById("composeBtn").addEventListener("click", goCompose);
-    document.getElementById("composeBtnMobile").addEventListener("click", goCompose);
-    // 전역 검색 → 둘러보기
-    document.getElementById("globalSearch").addEventListener("keydown", function(e){
-      if (e.key === "Enter") location.href = "/discovery?q=" + encodeURIComponent(e.target.value.trim());
-    });
-    </script>
 </body>
 </html>
