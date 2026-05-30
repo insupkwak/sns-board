@@ -29,11 +29,6 @@
         <main class="feed">
             <!-- 글쓰기 (로그인 시) -->
             <section id="composer" class="composer" hidden>
-                <select id="post-category" class="post-category">
-                    {% for c in categories %}
-                    <option value="{{ c }}">{{ c }}</option>
-                    {% endfor %}
-                </select>
                 <textarea id="post-content"
                           placeholder="지금 무슨 생각을 하고 있나요?"></textarea>
                 <div class="composer-actions">

@@ -370,7 +370,8 @@
         // 글쓰기
         $("#post-submit").onclick = async () => {
             const content = $("#post-content").value.trim();
-            const category = $("#post-category").value;
+            // 카테고리는 왼쪽 메뉴에서 선택된 것 사용 (전체 선택 시 '자유')
+            const category = currentCategory || "자유";
             if (!content) return;
             try {
                 const { post } = await api("/api/posts", "POST", { content, category });
