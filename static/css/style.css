@@ -309,17 +309,17 @@ button {
 /* ---------- 모바일 ---------- */
 @media (max-width: 640px) {
     .topbar-inner, .layout { max-width: 100%; }
-    /* 노치/홈인디케이터 안전영역 확보 */
+    /* 모바일: 화면 너비를 최대한 사용 (좌우 여백 최소화 + 노치 안전영역만 확보) */
     .topbar-inner {
-        padding-left: calc(16px + env(safe-area-inset-left));
-        padding-right: calc(16px + env(safe-area-inset-right));
+        padding-left: calc(12px + env(safe-area-inset-left));
+        padding-right: calc(12px + env(safe-area-inset-right));
     }
     .layout {
         flex-direction: column;
-        gap: 10px;
-        padding: 10px calc(10px + env(safe-area-inset-right))
-                 calc(10px + env(safe-area-inset-bottom))
-                 calc(10px + env(safe-area-inset-left));
+        gap: 8px;
+        padding: 8px calc(6px + env(safe-area-inset-right))
+                 calc(8px + env(safe-area-inset-bottom))
+                 calc(6px + env(safe-area-inset-left));
     }
     .sidebar { width: 100%; flex: none; position: static; }
 
