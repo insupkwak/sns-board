@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNS 게시판</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ version }}">
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <h1 class="logo">게시판</h1>
+            <div class="auth-area" id="auth-area"><!-- JS 렌더 --></div>
+        </div>
+    </header>
+
+    <div class="layout">
+        <!-- 왼쪽 카테고리 메뉴 -->
+        <aside class="sidebar">
+            <nav id="category-nav" class="category-nav">
+                <button class="cat active" data-category="">전체</button>
+                {% for c in categories %}
+                <button class="cat" data-category="{{ c }}">{{ c }}</button>
+                {% endfor %}
+            </nav>
+        </aside>
+
+        <!-- 중앙 피드 -->
+        <main class="feed">
+            <!-- 글쓰기 (로그인 시) -->
+            <section id="composer" class="composer" hidden>
+                <select id="post-category" class="post-category">
+                    {% for c in categories %}
+                    <option value="{{ c }}">{{ c }}</option>
+                    {% endfor %}
+                </select>
+                <textarea id="post-content"
+                          placeholder="지금 무슨 생각을 하고 있나요?"></textarea>
+                <div class="composer-actions">
+                    <button id="post-submit" class="btn-primary">게시</button>
+                </div>
+            </section>
+
+            <p id="login-hint" class="login-hint" hidden>
+                글을 작성하려면 로그인하세요.
+            </p>
+
+            <div id="posts" class="posts"></div>
+            <div id="loader" class="loader" hidden>불러오는 중…</div>
+            <div id="end" class="end" hidden>마지막 글입니다.</div>
+        </main>
+    </div>
+
+    <!-- 로그인 / 회원가입 모달 -->
+    <div id="modal" class="modal" hidden>
+        <div class="modal-box">
+            <div class="tabs">
+                <button type="button" id="tab-login" class="tab active">로그인</button>
+                <button type="button" id="tab-register" class="tab">회원가입</button>
+            </div>
+
+            <form id="login-form" class="auth-form">
+                <input type="email" name="email" placeholder="이메일" required>
+                <input type="password" name="password" placeholder="비밀번호" required>
+                <button type="submit" class="btn-primary">로그인</button>
+            </form>
+
+            <form id="register-form" class="auth-form" hidden>
+                <input type="text" name="nickname" placeholder="별명" maxlength="20" required>
+                <input type="email" name="email" placeholder="이메일 주소" required>
+                <input type="password" name="password" placeholder="비밀번호 (4자 이상)" required>
+                <input type="password" name="password2" placeholder="비밀번호 확인" required>
+                <button type="submit" class="btn-primary">회원가입</button>
+            </form>
+
+            <p id="auth-error" class="auth-error"></p>
+            <button type="button" id="modal-close" class="modal-close">닫기</button>
+        </div>
+    </div>
+
+    <span class="version">v{{ version }}</span>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v={{ version }}"></script>
+</body>
+</html>

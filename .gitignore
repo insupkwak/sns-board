@@ -1,0 +1,16 @@
+# 환경 변수
+.env
+
+# 데이터 (실데이터/DB 는 업로드하지 않음. 단, 스키마 data.sql 은 배포에 필요해 포함)
+data/*.db
+data/*.sqlite*
+data/board.db
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# OS
+.DS_Store
