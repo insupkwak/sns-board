@@ -323,13 +323,20 @@
         try {
             const q = new URLSearchParams({ offset, limit: PAGE });
             if (currentCategory) q.set("category", currentCategory);
+            const firstLoad = offset === 0;
             const { posts, has_more } = await api(`/api/posts?${q}`);
             const container = $("#posts");
+            if (firstLoad) container.innerHTML = "";  // 스켈레톤 제거
             posts.forEach((p) => container.append(postNode(p)));
             offset += posts.length;
+            if (firstLoad && posts.length === 0) {
+                container.innerHTML =
+                    '<div class="empty-state"><div class="empty-title">아직 글이 없습니다.</div>' +
+                    '<div class="empty-desc">첫 번째 이야기를 남겨보세요.</div></div>';
+            }
             if (!has_more) {
                 reachedEnd = true;
-                $("#end").hidden = false;
+                $("#end").hidden = posts.length === 0;
             }
         } catch (e) {
             console.error(e);
@@ -342,7 +349,9 @@
     function reload() {
         offset = 0;
         reachedEnd = false;
-        $("#posts").innerHTML = "";
+        // 로딩 스켈레톤
+        $("#posts").innerHTML =
+            '<div class="skeleton skel-card"></div>'.repeat(3);
         $("#end").hidden = true;
         loadMore();
     }
