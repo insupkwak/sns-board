@@ -1,428 +1,773 @@
+"""
+app.py — Telegram 스타일 내부용 SNS / 메신저 (Flask + Flask-SocketIO + SQLite)
+실행: python app.py  →  http://127.0.0.1:5000
+"""
+# ----------------------------------------------------------------------------
+# 1. import
+# ----------------------------------------------------------------------------
 import os
-import re
-import sqlite3
+import uuid
 from functools import wraps
 
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, jsonify, g, session, make_response
+from flask import (Flask, render_template, request, jsonify, session,
+                   redirect, url_for, send_from_directory, abort)
+from flask_socketio import SocketIO, join_room, leave_room, emit
+from werkzeug.security import check_password_hash
+from werkzeug.utils import secure_filename
 
+import storage
+
+# ----------------------------------------------------------------------------
+# 2. 기본 경로 설정
+# ----------------------------------------------------------------------------
 load_dotenv()
-
-APP_VERSION = os.getenv("APP_VERSION", "0.0.0")
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data")
-SCHEMA_PATH = os.path.join(DATA_DIR, "data.sql")
 
-# Vercel 등 서버리스 환경은 파일시스템이 읽기전용이고 /tmp 만 쓰기 가능.
-# (이 경우 DB 는 임시본이라 재배포/콜드스타트 시 초기화됨 — 디자인 확인용)
-if os.getenv("VERCEL") or os.getenv("DB_DIR"):
-    DB_PATH = os.path.join(os.getenv("DB_DIR", "/tmp"), "board.db")
+if os.getenv("VERCEL") or os.getenv("UPLOAD_DIR"):
+    UPLOAD_ROOT = os.getenv("UPLOAD_DIR", "/tmp/uploads")
 else:
-    DB_PATH = os.path.join(DATA_DIR, "board.db")
+    UPLOAD_ROOT = os.path.join(BASE_DIR, "uploads")
+ATTACH_DIR = os.path.join(UPLOAD_ROOT, "attachments")
+PROFILE_DIR = os.path.join(UPLOAD_ROOT, "profiles")
+os.makedirs(ATTACH_DIR, exist_ok=True)
+os.makedirs(PROFILE_DIR, exist_ok=True)
 
-# 왼쪽 메뉴 카테고리 (디자인.md: 카테고리 선택은 왼쪽 메뉴)
-CATEGORIES = ["자유", "질문", "정보", "일상", "유머"]
-
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-
+# ----------------------------------------------------------------------------
+# 3. Flask app 설정
+# ----------------------------------------------------------------------------
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
+app.secret_key = os.getenv("SECRET_KEY", "change-me-telegram-sns-secret")
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10MB
+
+# 제한 기준
+MSG_MAX = 2000
+ROOM_NAME_MAX = 50
+STATUS_MAX = 100
+PROFILE_IMG_MAX = 3 * 1024 * 1024
+
+ATTACH_EXT = {"png", "jpg", "jpeg", "gif", "webp", "pdf", "txt",
+              "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip"}
+IMAGE_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
+
+# ----------------------------------------------------------------------------
+# 5. SocketIO 설정 (threading 모드 — 추가 의존성 없이 바로 실행)
+# ----------------------------------------------------------------------------
+socketio = SocketIO(app, async_mode="threading", cors_allowed_origins="*")
+
+storage.init_db()
+
+# 접속 상태 추적
+online_users = {}   # uid -> set(sid)
+sid_user = {}       # sid -> uid
+sid_room = {}       # sid -> room_id (현재 보고 있는 방)
 
 
-# ---------------------------------------------------------------------------
-# 데이터베이스
-# ---------------------------------------------------------------------------
-def get_db():
-    if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA foreign_keys = ON")
-    return g.db
-
-
-@app.teardown_appcontext
-def close_db(_exc):
-    db = g.pop("db", None)
-    if db is not None:
-        db.close()
-
-
-def init_db():
-    """data.sql 스키마로 board.db 생성 (없으면). CREATE ... IF NOT EXISTS 라 반복 호출 안전."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
-        conn.executescript(f.read())
-    conn.commit()
-    conn.close()
-
-
-# 실행 방식(python app.py / flask run / gunicorn 등)과 무관하게 항상 테이블 보장
-init_db()
-
-
-# ---------------------------------------------------------------------------
-# 헬퍼
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# 6. 공통 유틸
+# ----------------------------------------------------------------------------
 def current_user():
-    uid = session.get("user_id")
-    if not uid:
-        return None
-    row = get_db().execute(
-        "SELECT id, email, nickname FROM users WHERE id = ?", (uid,)
-    ).fetchone()
-    return dict(row) if row else None
+    uid = session.get("uid")
+    return storage.get_user_by_id(uid) if uid else None
 
 
+def ok(**kw):
+    d = {"ok": True}
+    d.update(kw)
+    return jsonify(d)
+
+
+def err(message, code=400):
+    return jsonify({"ok": False, "error": message}), code
+
+
+def ext_of(filename):
+    return filename.rsplit(".", 1)[1].lower() if "." in filename else ""
+
+
+def user_currently_in_room(uid, room_id):
+    for sid in online_users.get(uid, set()):
+        if sid_room.get(sid) == room_id:
+            return True
+    return False
+
+
+# ----------------------------------------------------------------------------
+# 7~8. 로그인/관리자 확인 decorator
+# ----------------------------------------------------------------------------
 def login_required(view):
     @wraps(view)
-    def wrapped(*args, **kwargs):
-        if not session.get("user_id"):
-            return jsonify({"error": "로그인이 필요합니다."}), 401
-        return view(*args, **kwargs)
-
+    def wrapped(*a, **k):
+        if not session.get("uid"):
+            if request.path.startswith("/api"):
+                return err("로그인이 필요합니다.", 401)
+            return redirect(url_for("login_page"))
+        return view(*a, **k)
     return wrapped
 
 
-def serialize_post(row, me_id):
-    db = get_db()
-    likes = db.execute(
-        "SELECT COUNT(*) FROM likes WHERE post_id = ?", (row["id"],)
-    ).fetchone()[0]
-    liked = False
-    if me_id:
-        liked = (
-            db.execute(
-                "SELECT 1 FROM likes WHERE post_id = ? AND user_id = ?",
-                (row["id"], me_id),
-            ).fetchone()
-            is not None
-        )
-    comment_count = db.execute(
-        "SELECT COUNT(*) FROM comments WHERE post_id = ?", (row["id"],)
-    ).fetchone()[0]
-    return {
-        "id": row["id"],
-        "category": row["category"],
-        "content": row["content"],
-        "nickname": row["nickname"],
-        "user_id": row["user_id"],
-        "created_at": row["created_at"],
-        "updated_at": row["updated_at"],
-        "likes": likes,
-        "liked": liked,
-        "comment_count": comment_count,
-        "mine": me_id == row["user_id"],
-    }
+def admin_required(view):
+    @wraps(view)
+    def wrapped(*a, **k):
+        u = current_user()
+        if not u:
+            return err("로그인이 필요합니다.", 401) if request.path.startswith("/api") \
+                else redirect(url_for("login_page"))
+        if not u["is_admin"]:
+            return err("관리자 권한이 필요합니다.", 403) if request.path.startswith("/api") \
+                else abort(403)
+        return view(*a, **k)
+    return wrapped
 
 
-# ---------------------------------------------------------------------------
-# 페이지
-# ---------------------------------------------------------------------------
-def asset_version(rel_path):
-    """정적 파일 수정시각을 캐시버스터로 사용 (편집할 때마다 값이 바뀌어 새로 로드됨)."""
-    try:
-        return int(os.path.getmtime(os.path.join(app.static_folder, rel_path)))
-    except OSError:
-        return APP_VERSION
-
-
+# ----------------------------------------------------------------------------
+# 10. 페이지 route
+# ----------------------------------------------------------------------------
 @app.route("/")
 def index():
-    resp = make_response(render_template(
-        "index.html",
-        version=APP_VERSION,
-        categories=CATEGORIES,
-        css_v=asset_version("css/style.css"),
-        js_v=asset_version("js/app.js"),
-    ))
-    # HTML 은 항상 새로 받도록(캐시버스터가 붙은 최신 JS/CSS 를 참조하게)
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
+    return redirect(url_for("chat_page") if session.get("uid") else url_for("login_page"))
 
 
-# ---------------------------------------------------------------------------
-# 인증 API
-# ---------------------------------------------------------------------------
-@app.route("/api/register", methods=["POST"])
-def register():
-    data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip().lower()
-    nickname = (data.get("nickname") or "").strip()
+@app.route("/login")
+def login_page():
+    if session.get("uid"):
+        return redirect(url_for("chat_page"))
+    return render_template("login.html")
+
+
+@app.route("/register")
+def register_page():
+    if session.get("uid"):
+        return redirect(url_for("chat_page"))
+    return render_template("register.html")
+
+
+@app.route("/chat")
+@login_required
+def chat_page():
+    return render_template("chat.html", user=current_user())
+
+
+@app.route("/profile")
+@login_required
+def profile_page():
+    return render_template("profile.html", user=current_user())
+
+
+@app.route("/admin")
+@admin_required
+def admin_page():
+    return render_template("admin.html", user=current_user())
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login_page"))
+
+
+# ----------------------------------------------------------------------------
+# 11. Auth route
+# ----------------------------------------------------------------------------
+@app.route("/login", methods=["POST"])
+def login_post():
+    data = request.get_json(silent=True) or request.form
+    user_id = (data.get("user_id") or "").strip()
+    password = data.get("password") or ""
+    if not user_id or not password:
+        return err("아이디와 비밀번호를 입력하세요.")
+    u = storage.get_user_by_user_id(user_id)
+    if not u or not check_password_hash(u["password_hash"], password):
+        return err("아이디 또는 비밀번호가 올바르지 않습니다.", 401)
+    if not u["is_active"]:
+        return err("비활성화된 계정입니다. 관리자에게 문의하세요.", 403)
+    session["uid"] = u["id"]
+    return ok(redirect="/chat")
+
+
+@app.route("/register", methods=["POST"])
+def register_post():
+    data = request.get_json(silent=True) or request.form
+    username = (data.get("username") or "").strip()
+    user_id = (data.get("user_id") or "").strip()
     password = data.get("password") or ""
     password2 = data.get("password2") or ""
 
-    if not email or not nickname or not password:
-        return jsonify({"error": "모든 항목을 입력하세요."}), 400
-    if not EMAIL_RE.match(email):
-        return jsonify({"error": "이메일 형식이 올바르지 않습니다."}), 400
-    if len(nickname) > 20:
-        return jsonify({"error": "별명은 20자 이하로 입력하세요."}), 400
+    if not username or not user_id or not password:
+        return err("모든 항목을 입력하세요.")
+    if len(username) > 30:
+        return err("이름은 30자 이하로 입력하세요.")
     if len(password) < 4:
-        return jsonify({"error": "비밀번호는 4자 이상이어야 합니다."}), 400
+        return err("비밀번호는 4자 이상이어야 합니다.")
     if password != password2:
-        return jsonify({"error": "비밀번호가 일치하지 않습니다."}), 400
+        return err("비밀번호가 일치하지 않습니다.")
+    if storage.get_user_by_user_id(user_id):
+        return err("이미 사용 중인 아이디입니다.", 409)
 
-    from werkzeug.security import generate_password_hash
-
-    db = get_db()
-    try:
-        cur = db.execute(
-            "INSERT INTO users (email, nickname, password_hash) VALUES (?, ?, ?)",
-            (email, nickname, generate_password_hash(password)),
-        )
-        db.commit()
-    except sqlite3.IntegrityError:
-        return jsonify({"error": "이미 가입된 이메일입니다."}), 409
-
-    session["user_id"] = cur.lastrowid
-    return jsonify({"user": current_user()}), 201
+    storage.create_user(username, user_id, password)
+    return ok(redirect="/login")
 
 
-@app.route("/api/login", methods=["POST"])
-def login():
-    data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
-
-    from werkzeug.security import check_password_hash
-
-    row = get_db().execute(
-        "SELECT * FROM users WHERE email = ?", (email,)
-    ).fetchone()
-    if not row or not check_password_hash(row["password_hash"], password):
-        return jsonify({"error": "이메일 또는 비밀번호가 올바르지 않습니다."}), 401
-
-    session["user_id"] = row["id"]
-    return jsonify({"user": current_user()})
-
-
-@app.route("/api/logout", methods=["POST"])
-def logout():
-    session.clear()
-    return jsonify({"ok": True})
-
-
+# ----------------------------------------------------------------------------
+# 12. User API
+# ----------------------------------------------------------------------------
 @app.route("/api/me")
-def me():
-    return jsonify({"user": current_user(), "categories": CATEGORIES})
-
-
-# ---------------------------------------------------------------------------
-# 게시글 API
-# ---------------------------------------------------------------------------
-@app.route("/api/posts")
-def list_posts():
-    """최신글 상단, 무한스크롤용 offset/limit."""
-    category = request.args.get("category")
-    try:
-        offset = max(0, int(request.args.get("offset", 0)))
-        limit = min(50, max(1, int(request.args.get("limit", 10))))
-    except ValueError:
-        offset, limit = 0, 10
-
-    me_id = session.get("user_id")
-    db = get_db()
-    sql = (
-        "SELECT p.*, u.nickname FROM posts p "
-        "JOIN users u ON u.id = p.user_id "
-    )
-    params = []
-    if category and category in CATEGORIES:
-        sql += "WHERE p.category = ? "
-        params.append(category)
-    sql += "ORDER BY p.id DESC LIMIT ? OFFSET ?"
-    params += [limit, offset]
-
-    rows = db.execute(sql, params).fetchall()
-    posts = [serialize_post(r, me_id) for r in rows]
-    return jsonify({"posts": posts, "has_more": len(rows) == limit})
-
-
-@app.route("/api/posts", methods=["POST"])
 @login_required
-def create_post():
+def api_me():
+    u = current_user()
+    return ok(user={
+        "id": u["id"], "username": u["username"], "user_id": u["user_id"],
+        "profile_image": u["profile_image"], "status_message": u["status_message"],
+        "is_admin": u["is_admin"],
+    })
+
+
+@app.route("/api/users/search")
+@login_required
+def api_users_search():
+    me = current_user()
+    keyword = request.args.get("q", "")
+    users = storage.search_users(keyword, include_inactive=bool(me["is_admin"]))
+    return ok(users=users)
+
+
+@app.route("/api/users/<int:uid>")
+@login_required
+def api_user_get(uid):
+    u = storage.get_user_by_id(uid)
+    if not u:
+        return err("사용자를 찾을 수 없습니다.", 404)
+    return ok(user={
+        "id": u["id"], "username": u["username"], "user_id": u["user_id"],
+        "profile_image": u["profile_image"], "status_message": u["status_message"],
+    })
+
+
+# ----------------------------------------------------------------------------
+# 13. Room API
+# ----------------------------------------------------------------------------
+@app.route("/api/rooms")
+@login_required
+def api_rooms():
+    return ok(rooms=storage.get_rooms_for_user(session["uid"]))
+
+
+@app.route("/api/rooms", methods=["POST"])
+@login_required
+def api_rooms_create():
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    description = (data.get("description") or "").strip() or None
+    if not name:
+        return err("채팅방 이름을 입력하세요.")
+    if len(name) > ROOM_NAME_MAX:
+        return err(f"채팅방 이름은 {ROOM_NAME_MAX}자 이하로 입력하세요.")
+    rid = storage.create_room(name, session["uid"], description=description)
+    room = storage.get_room(rid)
+    socketio.emit("room_created", {"room_id": rid}, room=f"user:{session['uid']}")
+    return ok(room=room)
+
+
+@app.route("/api/rooms/search")
+@login_required
+def api_rooms_search():
+    return ok(rooms=storage.search_rooms_for_user(session["uid"], request.args.get("q", "")))
+
+
+@app.route("/api/rooms/<int:room_id>")
+@login_required
+def api_room_get(room_id):
+    if not storage.is_room_member(room_id, session["uid"]):
+        return err("접근 권한이 없습니다.", 403)
+    room = storage.get_room(room_id)
+    if not room:
+        return err("채팅방을 찾을 수 없습니다.", 404)
+    # 1:1 방 표시 이름 보정
+    name = room["name"]
+    if room["room_type"] == "direct":
+        for m in storage.get_room_members(room_id):
+            if m["id"] != session["uid"]:
+                name = m["username"]
+                break
+    return ok(room={**room, "display_name": name},
+              members=storage.get_room_members(room_id),
+              pinned=storage.get_pinned_messages(room_id),
+              role=storage.get_member_role(room_id, session["uid"]))
+
+
+@app.route("/api/rooms/<int:room_id>", methods=["PUT"])
+@login_required
+def api_room_update(room_id):
+    role = storage.get_member_role(room_id, session["uid"])
+    if role not in ("owner", "admin"):
+        return err("이름/설명 변경 권한이 없습니다.", 403)
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip() or None
+    if name and len(name) > ROOM_NAME_MAX:
+        return err(f"채팅방 이름은 {ROOM_NAME_MAX}자 이하로 입력하세요.")
+    storage.update_room(room_id, name=name,
+                        description=(data.get("description") or "").strip())
+    socketio.emit("room_updated", {"room_id": room_id}, room=f"room:{room_id}")
+    return ok(room=storage.get_room(room_id))
+
+
+@app.route("/api/rooms/<int:room_id>", methods=["DELETE"])
+@login_required
+def api_room_delete(room_id):
+    room = storage.get_room(room_id)
+    if not room:
+        return err("채팅방을 찾을 수 없습니다.", 404)
+    role = storage.get_member_role(room_id, session["uid"])
+    u = current_user()
+    if role != "owner" and not u["is_admin"]:
+        return err("삭제 권한이 없습니다.", 403)
+    storage.delete_room(room_id)
+    socketio.emit("room_deleted", {"room_id": room_id}, room=f"room:{room_id}")
+    return ok()
+
+
+@app.route("/api/rooms/<int:room_id>/members", methods=["POST"])
+@login_required
+def api_room_invite(room_id):
+    if not storage.is_room_member(room_id, session["uid"]):
+        return err("접근 권한이 없습니다.", 403)
+    data = request.get_json(silent=True) or {}
+    target = data.get("user_id")
+    if not target:
+        return err("초대할 사용자를 선택하세요.")
+    if not storage.get_user_by_id(target):
+        return err("사용자를 찾을 수 없습니다.", 404)
+    added = storage.add_room_member(room_id, int(target))
+    if added:
+        socketio.emit("room_created", {"room_id": room_id}, room=f"user:{target}")
+        socketio.emit("room_updated", {"room_id": room_id}, room=f"room:{room_id}")
+    return ok(added=added)
+
+
+@app.route("/api/rooms/<int:room_id>/members")
+@login_required
+def api_room_members(room_id):
+    if not storage.is_room_member(room_id, session["uid"]):
+        return err("접근 권한이 없습니다.", 403)
+    return ok(members=storage.get_room_members(room_id))
+
+
+@app.route("/api/rooms/<int:room_id>/members/<int:uid>", methods=["DELETE"])
+@login_required
+def api_room_leave(room_id, uid):
+    me = current_user()
+    # 본인 나가기 또는 owner/admin 이 내보내기
+    role = storage.get_member_role(room_id, session["uid"])
+    if uid != session["uid"] and role not in ("owner", "admin") and not me["is_admin"]:
+        return err("권한이 없습니다.", 403)
+    storage.remove_room_member(room_id, uid)
+    socketio.emit("room_deleted", {"room_id": room_id}, room=f"user:{uid}")
+    socketio.emit("room_updated", {"room_id": room_id}, room=f"room:{room_id}")
+    return ok()
+
+
+@app.route("/api/rooms/<int:room_id>/pin", methods=["POST"])
+@login_required
+def api_room_pin(room_id):
+    data = request.get_json(silent=True) or {}
+    storage.set_room_pinned(room_id, session["uid"], bool(data.get("pinned")))
+    return ok()
+
+
+@app.route("/api/rooms/<int:room_id>/favorite", methods=["POST"])
+@login_required
+def api_room_favorite(room_id):
+    data = request.get_json(silent=True) or {}
+    storage.set_room_favorite(room_id, session["uid"], bool(data.get("favorite")))
+    return ok()
+
+
+@app.route("/api/rooms/<int:room_id>/read", methods=["POST"])
+@login_required
+def api_room_read(room_id):
+    last = storage.get_room_last_message(room_id)
+    if last:
+        storage.mark_room_read(room_id, session["uid"], last["id"])
+    return ok()
+
+
+@app.route("/api/direct/start", methods=["POST"])
+@login_required
+def api_direct_start():
+    data = request.get_json(silent=True) or {}
+    target = data.get("target_user_id")
+    if not target or int(target) == session["uid"]:
+        return err("올바른 상대를 선택하세요.")
+    if not storage.get_user_by_id(target):
+        return err("사용자를 찾을 수 없습니다.", 404)
+    rid = storage.get_or_create_direct_room(session["uid"], int(target))
+    other = storage.get_user_by_id(target)
+    socketio.emit("room_created", {"room_id": rid}, room=f"user:{target}")
+    return ok(room={"id": rid, "name": other["username"], "room_type": "direct"})
+
+
+# ----------------------------------------------------------------------------
+# 14. Message API
+# ----------------------------------------------------------------------------
+@app.route("/api/rooms/<int:room_id>/messages")
+@login_required
+def api_messages(room_id):
+    if not storage.is_room_member(room_id, session["uid"]):
+        return err("접근 권한이 없습니다.", 403)
+    msgs = storage.get_messages(room_id, limit=100)
+    if msgs:
+        storage.mark_room_read(room_id, session["uid"], msgs[-1]["id"])
+    return ok(messages=msgs)
+
+
+@app.route("/api/rooms/<int:room_id>/messages/search")
+@login_required
+def api_messages_search(room_id):
+    if not storage.is_room_member(room_id, session["uid"]):
+        return err("접근 권한이 없습니다.", 403)
+    msgs = storage.get_messages(room_id, limit=100, keyword=request.args.get("q", ""))
+    return ok(messages=msgs)
+
+
+@app.route("/api/messages/<int:message_id>", methods=["PUT"])
+@login_required
+def api_message_edit(message_id):
     data = request.get_json(silent=True) or {}
     content = (data.get("content") or "").strip()
-    category = data.get("category") or "자유"
     if not content:
-        return jsonify({"error": "내용을 입력하세요."}), 400
-    if category not in CATEGORIES:
-        category = "자유"
-
-    db = get_db()
-    cur = db.execute(
-        "INSERT INTO posts (user_id, category, content) VALUES (?, ?, ?)",
-        (session["user_id"], category, content),
-    )
-    db.commit()
-    row = db.execute(
-        "SELECT p.*, u.nickname FROM posts p JOIN users u ON u.id = p.user_id "
-        "WHERE p.id = ?",
-        (cur.lastrowid,),
-    ).fetchone()
-    return jsonify({"post": serialize_post(row, session["user_id"])}), 201
+        return err("내용을 입력하세요.")
+    if len(content) > MSG_MAX:
+        return err(f"메시지는 {MSG_MAX}자 이하여야 합니다.")
+    if not storage.edit_message(message_id, session["uid"], content):
+        return err("수정할 수 없습니다.", 403)
+    m = storage.get_message(message_id)
+    socketio.emit("message_updated", m, room=f"room:{m['room_id']}")
+    return ok(message=m)
 
 
-@app.route("/api/posts/<int:post_id>", methods=["PUT"])
+@app.route("/api/messages/<int:message_id>", methods=["DELETE"])
 @login_required
-def update_post(post_id):
+def api_message_delete(message_id):
+    raw = storage.get_message_raw(message_id)
+    if not raw:
+        return err("메시지를 찾을 수 없습니다.", 404)
+    u = current_user()
+    if not storage.delete_message(message_id, session["uid"], is_admin=bool(u["is_admin"])):
+        return err("삭제 권한이 없습니다.", 403)
+    socketio.emit("message_deleted",
+                  {"id": message_id, "room_id": raw["room_id"]},
+                  room=f"room:{raw['room_id']}")
+    return ok()
+
+
+@app.route("/api/messages/<int:message_id>/pin", methods=["POST"])
+@login_required
+def api_message_pin(message_id):
+    raw = storage.get_message_raw(message_id)
+    if not raw:
+        return err("메시지를 찾을 수 없습니다.", 404)
+    role = storage.get_member_role(raw["room_id"], session["uid"])
+    if role not in ("owner", "admin"):
+        return err("고정 권한이 없습니다.", 403)
     data = request.get_json(silent=True) or {}
-    content = (data.get("content") or "").strip()
-    if not content:
-        return jsonify({"error": "내용을 입력하세요."}), 400
-
-    db = get_db()
-    row = db.execute("SELECT user_id FROM posts WHERE id = ?", (post_id,)).fetchone()
-    if not row:
-        return jsonify({"error": "게시글을 찾을 수 없습니다."}), 404
-    if row["user_id"] != session["user_id"]:
-        return jsonify({"error": "권한이 없습니다."}), 403
-
-    db.execute(
-        "UPDATE posts SET content = ?, updated_at = datetime('now','localtime') "
-        "WHERE id = ?",
-        (content, post_id),
-    )
-    db.commit()
-    updated = db.execute(
-        "SELECT p.*, u.nickname FROM posts p JOIN users u ON u.id = p.user_id "
-        "WHERE p.id = ?",
-        (post_id,),
-    ).fetchone()
-    return jsonify({"post": serialize_post(updated, session["user_id"])})
+    storage.pin_message(message_id, bool(data.get("pinned")))
+    socketio.emit("message_pinned",
+                  {"id": message_id, "room_id": raw["room_id"],
+                   "pinned": bool(data.get("pinned"))},
+                  room=f"room:{raw['room_id']}")
+    return ok()
 
 
-@app.route("/api/posts/<int:post_id>", methods=["DELETE"])
+# ----------------------------------------------------------------------------
+# 15. Attachment API
+# ----------------------------------------------------------------------------
+@app.route("/api/attachments", methods=["POST"])
 @login_required
-def delete_post(post_id):
-    db = get_db()
-    row = db.execute("SELECT user_id FROM posts WHERE id = ?", (post_id,)).fetchone()
-    if not row:
-        return jsonify({"error": "게시글을 찾을 수 없습니다."}), 404
-    if row["user_id"] != session["user_id"]:
-        return jsonify({"error": "권한이 없습니다."}), 403
-    db.execute("DELETE FROM posts WHERE id = ?", (post_id,))
-    db.commit()
-    return jsonify({"ok": True})
+def api_attachment_upload():
+    if "file" not in request.files:
+        return err("파일이 없습니다.")
+    f = request.files["file"]
+    if not f or not f.filename:
+        return err("파일이 없습니다.")
+    ext = ext_of(f.filename)
+    if ext not in ATTACH_EXT:
+        return err("허용되지 않은 파일 형식입니다.")
+    safe = secure_filename(f.filename) or f"file.{ext}"
+    saved = f"{uuid.uuid4().hex}_{safe}"
+    path = os.path.join(ATTACH_DIR, saved)
+    f.save(path)
+    size = os.path.getsize(path)
+    if size > 10 * 1024 * 1024:
+        os.remove(path)
+        return err("파일은 10MB 이하만 가능합니다.")
+    file_url = f"/uploads/attachments/{saved}"
+    aid = storage.save_attachment(f.filename, saved, path, file_url,
+                                  f.mimetype, size, session["uid"])
+    return ok(attachment={"id": aid, "original_name": f.filename, "url": file_url,
+                          "file_type": f.mimetype, "file_size": size})
 
 
-@app.route("/api/posts/<int:post_id>/like", methods=["POST"])
+@app.route("/api/attachments/<int:attachment_id>", methods=["DELETE"])
 @login_required
-def toggle_like(post_id):
-    db = get_db()
-    if not db.execute("SELECT 1 FROM posts WHERE id = ?", (post_id,)).fetchone():
-        return jsonify({"error": "게시글을 찾을 수 없습니다."}), 404
-
-    uid = session["user_id"]
-    exists = db.execute(
-        "SELECT 1 FROM likes WHERE post_id = ? AND user_id = ?", (post_id, uid)
-    ).fetchone()
-    if exists:
-        db.execute(
-            "DELETE FROM likes WHERE post_id = ? AND user_id = ?", (post_id, uid)
-        )
-        liked = False
-    else:
-        db.execute(
-            "INSERT INTO likes (post_id, user_id) VALUES (?, ?)", (post_id, uid)
-        )
-        liked = True
-    db.commit()
-    likes = db.execute(
-        "SELECT COUNT(*) FROM likes WHERE post_id = ?", (post_id,)
-    ).fetchone()[0]
-    return jsonify({"liked": liked, "likes": likes})
+def api_attachment_delete(attachment_id):
+    if not storage.delete_attachment(attachment_id, session["uid"]):
+        return err("삭제 권한이 없습니다.", 403)
+    return ok()
 
 
-# ---------------------------------------------------------------------------
-# 댓글 API
-# ---------------------------------------------------------------------------
-@app.route("/api/posts/<int:post_id>/comments")
-def list_comments(post_id):
-    me_id = session.get("user_id")
-    rows = get_db().execute(
-        "SELECT c.*, u.nickname FROM comments c JOIN users u ON u.id = c.user_id "
-        "WHERE c.post_id = ? ORDER BY c.id ASC",
-        (post_id,),
-    ).fetchall()
-    comments = [
-        {
-            "id": r["id"],
-            "content": r["content"],
-            "nickname": r["nickname"],
-            "user_id": r["user_id"],
-            "created_at": r["created_at"],
-            "updated_at": r["updated_at"],
-            "mine": me_id == r["user_id"],
-        }
-        for r in rows
-    ]
-    return jsonify({"comments": comments})
+@app.route("/uploads/attachments/<path:filename>")
+def serve_attachment(filename):
+    return send_from_directory(ATTACH_DIR, filename)
 
 
-@app.route("/api/posts/<int:post_id>/comments", methods=["POST"])
+@app.route("/uploads/profiles/<path:filename>")
+def serve_profile(filename):
+    return send_from_directory(PROFILE_DIR, filename)
+
+
+# ----------------------------------------------------------------------------
+# 16. Profile API
+# ----------------------------------------------------------------------------
+@app.route("/api/profile")
 @login_required
-def create_comment(post_id):
+def api_profile_get():
+    u = current_user()
+    return ok(user={
+        "id": u["id"], "username": u["username"], "user_id": u["user_id"],
+        "profile_image": u["profile_image"], "status_message": u["status_message"],
+    })
+
+
+@app.route("/api/profile", methods=["POST"])
+@login_required
+def api_profile_update():
     data = request.get_json(silent=True) or {}
-    content = (data.get("content") or "").strip()
-    if not content:
-        return jsonify({"error": "댓글을 입력하세요."}), 400
-
-    db = get_db()
-    if not db.execute("SELECT 1 FROM posts WHERE id = ?", (post_id,)).fetchone():
-        return jsonify({"error": "게시글을 찾을 수 없습니다."}), 404
-    db.execute(
-        "INSERT INTO comments (post_id, user_id, content) VALUES (?, ?, ?)",
-        (post_id, session["user_id"], content),
-    )
-    db.commit()
-    return jsonify({"ok": True}), 201
+    username = (data.get("username") or "").strip()
+    status_message = (data.get("status_message") or "").strip()
+    if not username:
+        return err("이름을 입력하세요.")
+    if len(username) > 30:
+        return err("이름은 30자 이하로 입력하세요.")
+    if len(status_message) > STATUS_MAX:
+        return err(f"상태 메시지는 {STATUS_MAX}자 이하로 입력하세요.")
+    storage.update_user_profile(session["uid"], username, status_message)
+    return ok(user=storage.get_user_by_id(session["uid"]))
 
 
-@app.route("/api/comments/<int:comment_id>", methods=["PUT"])
+@app.route("/api/profile/image", methods=["POST"])
 @login_required
-def update_comment(comment_id):
+def api_profile_image():
+    if "file" not in request.files:
+        return err("이미지가 없습니다.")
+    f = request.files["file"]
+    if not f or not f.filename:
+        return err("이미지가 없습니다.")
+    ext = ext_of(f.filename)
+    if ext not in IMAGE_EXT:
+        return err("이미지 파일만 업로드할 수 있습니다.")
+    safe = secure_filename(f.filename) or f"img.{ext}"
+    saved = f"{uuid.uuid4().hex}_{safe}"
+    path = os.path.join(PROFILE_DIR, saved)
+    f.save(path)
+    if os.path.getsize(path) > PROFILE_IMG_MAX:
+        os.remove(path)
+        return err("프로필 이미지는 3MB 이하만 가능합니다.")
+    url = f"/uploads/profiles/{saved}"
+    u = current_user()
+    storage.update_user_profile(session["uid"], u["username"],
+                                u["status_message"] or "", profile_image=url)
+    return ok(profile_image=url)
+
+
+# ----------------------------------------------------------------------------
+# Notification API
+# ----------------------------------------------------------------------------
+@app.route("/api/notifications")
+@login_required
+def api_notifications():
+    return ok(notifications=storage.get_notifications(session["uid"]))
+
+
+@app.route("/api/notifications/<int:nid>/read", methods=["POST"])
+@login_required
+def api_notification_read(nid):
+    storage.mark_notification_read(nid, session["uid"])
+    return ok()
+
+
+# ----------------------------------------------------------------------------
+# 17. Admin API
+# ----------------------------------------------------------------------------
+@app.route("/api/admin/summary")
+@admin_required
+def api_admin_summary():
+    return ok(summary=storage.get_admin_summary())
+
+
+@app.route("/api/admin/users")
+@admin_required
+def api_admin_users():
+    return ok(users=storage.get_all_users())
+
+
+@app.route("/api/admin/users/<int:uid>/active", methods=["POST"])
+@admin_required
+def api_admin_user_active(uid):
     data = request.get_json(silent=True) or {}
+    storage.set_user_active(uid, bool(data.get("active")))
+    return ok()
+
+
+@app.route("/api/admin/rooms")
+@admin_required
+def api_admin_rooms():
+    return ok(rooms=storage.get_all_rooms())
+
+
+@app.route("/api/admin/rooms/<int:room_id>", methods=["DELETE"])
+@admin_required
+def api_admin_room_delete(room_id):
+    storage.delete_room(room_id)
+    socketio.emit("room_deleted", {"room_id": room_id}, room=f"room:{room_id}")
+    return ok()
+
+
+@app.route("/api/admin/notice", methods=["POST"])
+@admin_required
+def api_admin_notice():
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "공지").strip()
+    message = (data.get("message") or "").strip()
+    rid = storage.create_room(name, session["uid"], description="공지방",
+                              room_type="notice", is_notice=1)
+    # 모든 사용자 초대
+    for u in storage.get_all_users():
+        storage.add_room_member(rid, u["id"])
+    if message:
+        mid = storage.save_message(rid, session["uid"], content=message)
+        socketio.emit("receive_message", storage.get_message(mid), room=f"room:{rid}")
+    socketio.emit("room_created", {"room_id": rid})
+    return ok(room_id=rid)
+
+
+# ----------------------------------------------------------------------------
+# 18. SocketIO events
+# ----------------------------------------------------------------------------
+@socketio.on("connect")
+def on_connect():
+    uid = session.get("uid")
+    if not uid:
+        return
+    sid = request.sid
+    sid_user[sid] = uid
+    online_users.setdefault(uid, set()).add(sid)
+    join_room(f"user:{uid}")            # 개인 알림 채널
+    emit("user_online", {"user_id": uid}, broadcast=True)
+
+
+@socketio.on("disconnect")
+def on_disconnect():
+    sid = request.sid
+    uid = sid_user.pop(sid, None)
+    sid_room.pop(sid, None)
+    if uid and uid in online_users:
+        online_users[uid].discard(sid)
+        if not online_users[uid]:
+            online_users.pop(uid, None)
+            emit("user_offline", {"user_id": uid}, broadcast=True)
+
+
+@socketio.on("join_room")
+def on_join(data):
+    uid = session.get("uid")
+    if not uid:
+        return
+    room_id = data.get("room_id")
+    if not room_id or not storage.is_room_member(room_id, uid):
+        emit("error_message", {"error": "접근 권한이 없습니다."})
+        return
+    sid = request.sid
+    prev = sid_room.get(sid)
+    if prev:
+        leave_room(f"room:{prev}")
+    join_room(f"room:{room_id}")
+    sid_room[sid] = room_id
+    last = storage.get_room_last_message(room_id)
+    if last:
+        storage.mark_room_read(room_id, uid, last["id"])
+
+
+@socketio.on("leave_room")
+def on_leave(data):
+    room_id = data.get("room_id")
+    if room_id:
+        leave_room(f"room:{room_id}")
+        if sid_room.get(request.sid) == room_id:
+            sid_room.pop(request.sid, None)
+
+
+@socketio.on("send_message")
+def on_send(data):
+    uid = session.get("uid")
+    if not uid:
+        emit("error_message", {"error": "로그인이 필요합니다."})
+        return
+    room_id = data.get("room_id")
     content = (data.get("content") or "").strip()
-    if not content:
-        return jsonify({"error": "댓글을 입력하세요."}), 400
+    attachment_id = data.get("attachment_id")
+    reply_to_id = data.get("reply_to_id")
 
-    db = get_db()
-    row = db.execute(
-        "SELECT user_id FROM comments WHERE id = ?", (comment_id,)
-    ).fetchone()
-    if not row:
-        return jsonify({"error": "댓글을 찾을 수 없습니다."}), 404
-    if row["user_id"] != session["user_id"]:
-        return jsonify({"error": "권한이 없습니다."}), 403
-    db.execute(
-        "UPDATE comments SET content = ?, updated_at = datetime('now','localtime') "
-        "WHERE id = ?",
-        (content, comment_id),
-    )
-    db.commit()
-    return jsonify({"ok": True})
+    if not room_id or not storage.is_room_member(room_id, uid):
+        emit("error_message", {"error": "접근 권한이 없습니다."})
+        return
+    if not content and not attachment_id:
+        return
+    if len(content) > MSG_MAX:
+        emit("error_message", {"error": f"메시지는 {MSG_MAX}자 이하여야 합니다."})
+        return
 
+    mid = storage.save_message(room_id, uid, content=content or None,
+                               attachment_id=attachment_id, reply_to_id=reply_to_id)
+    if not mid:
+        return
+    msg = storage.get_message(mid)
+    storage.mark_room_read(room_id, uid, mid)
 
-@app.route("/api/comments/<int:comment_id>", methods=["DELETE"])
-@login_required
-def delete_comment(comment_id):
-    db = get_db()
-    row = db.execute(
-        "SELECT user_id FROM comments WHERE id = ?", (comment_id,)
-    ).fetchone()
-    if not row:
-        return jsonify({"error": "댓글을 찾을 수 없습니다."}), 404
-    if row["user_id"] != session["user_id"]:
-        return jsonify({"error": "권한이 없습니다."}), 403
-    db.execute("DELETE FROM comments WHERE id = ?", (comment_id,))
-    db.commit()
-    return jsonify({"ok": True})
+    # 같은 방 사용자에게 실시간 전송
+    socketio.emit("receive_message", msg, room=f"room:{room_id}")
+
+    # 방 멤버들 목록 갱신 + 미접속/다른 방 멤버 알림
+    sender_name = msg["username"]
+    preview = content if content else "[첨부파일]"
+    for member_id in storage.get_room_member_ids(room_id):
+        socketio.emit("room_updated", {"room_id": room_id}, room=f"user:{member_id}")
+        if member_id != uid and not user_currently_in_room(member_id, room_id):
+            storage.create_notification(member_id, room_id, mid, sender_name, preview)
 
 
+@socketio.on("typing")
+def on_typing(data):
+    uid = session.get("uid")
+    room_id = data.get("room_id")
+    if not uid or not room_id:
+        return
+    u = storage.get_user_by_id(uid)
+    emit("typing", {"room_id": room_id, "username": u["username"] if u else ""},
+         room=f"room:{room_id}", include_self=False)
+
+
+@socketio.on("stop_typing")
+def on_stop_typing(data):
+    room_id = data.get("room_id")
+    if room_id:
+        emit("stop_typing", {"room_id": room_id}, room=f"room:{room_id}",
+             include_self=False)
+
+
+# ----------------------------------------------------------------------------
+# 19. 실행
+# ----------------------------------------------------------------------------
 if __name__ == "__main__":
-    # macOS 는 5000 포트를 AirPlay 수신기가 점유하는 경우가 많아 5001 사용
-    port = int(os.getenv("PORT", "5001"))
-    app.run(host="127.0.0.1", port=port, debug=True, threaded=True)
+    port = int(os.getenv("PORT", "5000"))
+    socketio.run(app, host="0.0.0.0", port=port, debug=True,
+                 allow_unsafe_werkzeug=True)

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Messenger{% endblock %}
+{% block body_class %}chat-body{% endblock %}
+{% block body %}
+<div id="appShell" class="app-shell" data-show="list">
+
+    <!-- 좌측 사이드바 -->
+    <aside class="sidebar" id="sidebar">
+        <div class="brand-area">
+            <span class="brand">Messenger</span>
+            <div class="brand-actions">
+                <a href="/profile" class="icon-btn" title="프로필" id="profileButton">👤</a>
+                {% if user.is_admin %}<a href="/admin" class="icon-btn" title="관리자" id="adminButton">⚙</a>{% endif %}
+                <a href="/logout" class="icon-btn" title="로그아웃" id="logoutButton">⏻</a>
+            </div>
+        </div>
+
+        <div class="current-user" id="currentUserBox">
+            <div class="avatar" id="myAvatar"></div>
+            <div class="cu-meta">
+                <div class="cu-name" id="myName">…</div>
+                <div class="cu-status" id="myStatus"></div>
+            </div>
+        </div>
+
+        <div class="search-box">
+            <input type="text" id="roomSearchInput" placeholder="채팅방 검색">
+        </div>
+        <div class="search-box">
+            <input type="text" id="userSearchInput" placeholder="사용자 검색 (1:1 채팅)">
+            <div id="userSearchResults" class="search-results" hidden></div>
+        </div>
+
+        <div class="create-room" id="createRoomBox">
+            <button id="openCreateRoom" class="btn-soft">＋ 새 그룹 채팅방</button>
+            <form id="createRoomForm" class="create-room-form" hidden>
+                <input type="text" id="newRoomName" placeholder="채팅방 이름" maxlength="50" required>
+                <input type="text" id="newRoomDesc" placeholder="설명 (선택)">
+                <div class="row-end">
+                    <button type="button" id="cancelCreateRoom" class="btn-ghost">취소</button>
+                    <button type="submit" class="btn-primary sm">생성</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="room-list" id="roomList"></div>
+
+        <div class="notif-box" id="notificationBox"></div>
+    </aside>
+
+    <!-- 우측 채팅 메인 -->
+    <main class="chat-main" id="chatMain">
+        <div id="emptyState" class="empty-state">
+            <p>왼쪽에서 채팅방을 선택하세요.</p>
+        </div>
+
+        <div id="chatPanel" class="chat-panel" hidden>
+            <header class="chat-header">
+                <button class="icon-btn mobile-only" id="mobileBackBtn" title="뒤로">←</button>
+                <div class="ch-titles">
+                    <div class="chat-title" id="chatTitle"></div>
+                    <div class="chat-subtitle" id="chatSubTitle"></div>
+                </div>
+                <div class="room-actions" id="roomActionButtons">
+                    <button class="icon-btn" id="searchMsgToggle" title="메시지 검색">🔍</button>
+                    <button class="icon-btn" id="pinToggleBtn" title="고정 메시지">📌</button>
+                    <button class="icon-btn" id="inviteBtn" title="멤버 초대">＋</button>
+                    <button class="icon-btn" id="membersBtn" title="멤버 목록">👥</button>
+                    <button class="icon-btn" id="renameBtn" title="이름/설명 변경">✎</button>
+                    <button class="icon-btn" id="leaveBtn" title="나가기">↩</button>
+                    <button class="icon-btn danger" id="deleteRoomBtn" title="채팅방 삭제">🗑</button>
+                </div>
+            </header>
+
+            <div id="messageSearchBar" class="msg-search" hidden>
+                <input type="text" id="messageSearchInput" placeholder="이 방에서 메시지 검색">
+                <button class="btn-ghost" id="closeMsgSearch">닫기</button>
+            </div>
+
+            <div id="pinnedMessageBox" class="pinned-box" hidden></div>
+            <div id="panelExtra" class="panel-extra" hidden></div>
+
+            <div class="message-list" id="messageList"></div>
+            <div id="typingIndicator" class="typing-indicator" hidden></div>
+
+            <div id="replyPreviewBox" class="reply-preview" hidden></div>
+            <div id="selectedFileBox" class="selected-file" hidden></div>
+
+            <form id="messageForm" class="message-form">
+                <button type="button" class="icon-btn" id="attachBtn" title="첨부">📎</button>
+                <input type="file" id="fileInput" hidden>
+                <textarea id="messageInput" rows="1" placeholder="메시지를 입력하세요…"></textarea>
+                <button type="submit" class="icon-btn send" id="sendBtn" title="전송">➤</button>
+            </form>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block socket %}
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}

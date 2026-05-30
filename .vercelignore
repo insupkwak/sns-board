@@ -2,8 +2,12 @@ venv/
 .venv/
 __pycache__/
 *.pyc
-data/*.db
-data/*.sqlite*
+instance/
+uploads/
+data/
 .env
 기본.md
 디자인.md
+고도화.md
+프로젝트정리.md
+프로젝트정리 (rev.1).md

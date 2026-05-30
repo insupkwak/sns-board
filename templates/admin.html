@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}관리자{% endblock %}
+{% block body_class %}page-body{% endblock %}
+{% block body %}
+<div class="page-wrap wide">
+    <header class="page-header">
+        <a href="/chat" class="icon-btn">←</a>
+        <h1>관리자</h1>
+    </header>
+
+    <div class="summary-grid" id="summaryGrid">
+        <div class="card stat"><div class="stat-num" id="statUsers">-</div><div class="stat-label">사용자</div></div>
+        <div class="card stat"><div class="stat-num" id="statRooms">-</div><div class="stat-label">채팅방</div></div>
+        <div class="card stat"><div class="stat-num" id="statMessages">-</div><div class="stat-label">메시지</div></div>
+    </div>
+
+    <div class="card">
+        <h2>공지방 생성</h2>
+        <form id="noticeForm" class="notice-form">
+            <input type="text" id="noticeName" placeholder="공지방 이름" value="공지">
+            <textarea id="noticeMessage" rows="2" placeholder="공지 메시지 (선택)"></textarea>
+            <button type="submit" class="btn-primary">공지방 만들기</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>사용자 목록</h2>
+        <div id="adminUsers" class="admin-list"></div>
+    </div>
+
+    <div class="card">
+        <h2>채팅방 목록</h2>
+        <div id="adminRooms" class="admin-list"></div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+{% endblock %}

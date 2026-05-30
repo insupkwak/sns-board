@@ -1,2 +1,6 @@
-flask
+Flask
+Flask-SocketIO
+Werkzeug
 python-dotenv
+# 운영(Oracle)에서 고성능 웹소켓을 원하면 eventlet 또는 gevent 추가:
+# eventlet
