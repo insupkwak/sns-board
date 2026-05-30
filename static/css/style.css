@@ -316,12 +316,15 @@ button {
     }
     .layout {
         flex-direction: column;
+        align-items: stretch;     /* 세로 배치에서 자식들이 너비를 꽉 채우도록 */
         gap: 8px;
         padding: 8px calc(6px + env(safe-area-inset-right))
                  calc(8px + env(safe-area-inset-bottom))
                  calc(6px + env(safe-area-inset-left));
     }
     .sidebar { width: 100%; flex: none; position: static; }
+    /* 글쓰기/안내/게시글 영역 항상 전체 너비 (로그인 전·후 동일) */
+    .feed { width: 100%; }
 
     /* 카테고리: 가로 스크롤 메뉴 (스크롤바는 숨김) */
     .category-nav {
@@ -335,7 +338,8 @@ button {
         border: 1px solid var(--border);
         border-right: none;
         white-space: nowrap;
-        flex: 0 0 auto;
+        flex: 1 0 auto;                   /* 가로를 꽉 채우게 분배(좁으면 스크롤) */
+        text-align: center;
         min-height: 44px;                 /* 터치 타깃 확대 */
     }
     .cat:last-child { border-right: 1px solid var(--border); }
