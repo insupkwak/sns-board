@@ -28,9 +28,15 @@ html, body {
     font-size: 16px;
     line-height: 1.5;
     -webkit-text-size-adjust: 100%;
+    overflow-x: hidden;            /* 가로 스크롤 원천 차단 */
 }
 
-button { font-family: inherit; cursor: pointer; }
+button {
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;  /* 모바일 탭 시 깜빡임 제거 */
+    touch-action: manipulation;                /* 더블탭 확대 지연 제거 */
+}
 
 /* ---------- 상단바 ---------- */
 .topbar {
@@ -302,20 +308,42 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---------- 모바일 ---------- */
 @media (max-width: 640px) {
-    .layout { flex-direction: column; padding: 10px; gap: 10px; }
+    .topbar-inner, .layout { max-width: 100%; }
+    /* 노치/홈인디케이터 안전영역 확보 */
+    .topbar-inner {
+        padding-left: calc(16px + env(safe-area-inset-left));
+        padding-right: calc(16px + env(safe-area-inset-right));
+    }
+    .layout {
+        flex-direction: column;
+        gap: 10px;
+        padding: 10px calc(10px + env(safe-area-inset-right))
+                 calc(10px + env(safe-area-inset-bottom))
+                 calc(10px + env(safe-area-inset-left));
+    }
     .sidebar { width: 100%; flex: none; position: static; }
-    /* 카테고리: 가로 스크롤 메뉴 */
+
+    /* 카테고리: 가로 스크롤 메뉴 (스크롤바는 숨김) */
     .category-nav {
         flex-direction: row;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;            /* Firefox */
     }
+    .category-nav::-webkit-scrollbar { display: none; }  /* Chrome/Safari */
     .cat {
         border: 1px solid var(--border);
         border-right: none;
         white-space: nowrap;
         flex: 0 0 auto;
+        min-height: 44px;                 /* 터치 타깃 확대 */
     }
     .cat:last-child { border-right: 1px solid var(--border); }
-    .topbar-inner, .layout { max-width: 100%; }
+
+    /* 터치하기 쉬운 크기 + iOS 입력 자동확대(폰트 16px↑) 방지 */
+    .act, .comment-form button { min-height: 42px; }
+    .comment .c-tools button { padding: 6px 8px; font-size: 13px; }
+    .comment-form input,
+    .post-category { font-size: 16px; }
+    .post-actions { gap: 8px; }
 }
