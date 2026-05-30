@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SNS 게시판</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ css_v }}">
 </head>
 <body>
     <header class="topbar">
@@ -79,6 +79,6 @@
     </div>
 
     <span class="version">v{{ version }}</span>
-    <script src="{{ url_for('static', filename='js/app.js') }}?v={{ version }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v={{ js_v }}"></script>
 </body>
 </html>

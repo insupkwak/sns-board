@@ -292,7 +292,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* 편집 영역 */
-.edit-box { display: flex; flex-direction: column; gap: 8px; }
+.edit-box { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .edit-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .edit-actions button {
     border: 1px solid var(--border); padding: 7px 14px; font-size: 14px;

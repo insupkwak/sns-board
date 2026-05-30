@@ -163,8 +163,8 @@
         if (node.querySelector(".edit-box")) return;
         const box = el("div", "edit-box");
         const ta = el("textarea", "post-content-edit");
-        ta.rows = 3;
         ta.value = p.content;
+        ta.addEventListener("input", () => autoGrow(ta));
         const acts = el("div", "edit-actions");
         const save = el("button", "save");
         save.textContent = "저장";
@@ -173,6 +173,7 @@
         acts.append(cancel, save);
         box.append(ta, acts);
         bodyEl.replaceWith(box);
+        autoGrow(ta);   // 기존 내용 줄 수에 맞춰 초기 높이 설정
 
         cancel.onclick = () => box.replaceWith(bodyEl);
         save.onclick = async () => {
@@ -388,8 +389,14 @@
         $("#tab-login").onclick = () => switchTab("login");
         $("#tab-register").onclick = () => switchTab("register");
         $("#modal-close").onclick = closeModal;
+        // 배경 클릭으로 닫기: 마우스 다운과 업이 '모두' 배경에서 일어난 경우만.
+        // (폼 안에서 클릭하다 실수로 바깥에서 떼어도 창이 닫히지 않도록)
+        let downOnBackdrop = false;
+        $("#modal").addEventListener("mousedown", (e) => {
+            downOnBackdrop = e.target.id === "modal";
+        });
         $("#modal").addEventListener("click", (e) => {
-            if (e.target.id === "modal") closeModal();
+            if (e.target.id === "modal" && downOnBackdrop) closeModal();
         });
 
         // 로그인

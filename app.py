@@ -4,7 +4,7 @@ import sqlite3
 from functools import wraps
 
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, jsonify, g, session
+from flask import Flask, render_template, request, jsonify, g, session, make_response
 
 load_dotenv()
 
@@ -120,11 +120,26 @@ def serialize_post(row, me_id):
 # ---------------------------------------------------------------------------
 # 페이지
 # ---------------------------------------------------------------------------
+def asset_version(rel_path):
+    """정적 파일 수정시각을 캐시버스터로 사용 (편집할 때마다 값이 바뀌어 새로 로드됨)."""
+    try:
+        return int(os.path.getmtime(os.path.join(app.static_folder, rel_path)))
+    except OSError:
+        return APP_VERSION
+
+
 @app.route("/")
 def index():
-    return render_template(
-        "index.html", version=APP_VERSION, categories=CATEGORIES
-    )
+    resp = make_response(render_template(
+        "index.html",
+        version=APP_VERSION,
+        categories=CATEGORIES,
+        css_v=asset_version("css/style.css"),
+        js_v=asset_version("js/app.js"),
+    ))
+    # HTML 은 항상 새로 받도록(캐시버스터가 붙은 최신 JS/CSS 를 참조하게)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 # ---------------------------------------------------------------------------
