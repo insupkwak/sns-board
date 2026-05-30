@@ -1,23 +1,22 @@
-{% extends "base.html" %}
-{% block title %}채널{% endblock %}
-{% block body_class %}page-body{% endblock %}
-{% block body %}
-<div class="page-wrap wide">
-  <header class="page-header">
-    <a href="/discovery" class="icon-btn">←</a>
-    <h1>채널</h1>
-  </header>
-
-  <div class="card channel-head" id="channelHead">불러오는 중…</div>
-
-  <section class="card">
-    <h2>최신 기사</h2>
-    <div id="channelArticles" class="article-list"></div>
-  </section>
-</div>
-<script>window.__roomId = {{ room_id }};</script>
-{% endblock %}
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/api.js') }}"></script>
-<script src="{{ url_for('static', filename='js/channel.js') }}"></script>
-{% endblock %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>채널 · 게시판</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ css_v }}">
+</head>
+<body>
+  <header class="mtop"><div class="mtop-inner">
+    <a class="logo" href="/">게시판</a>
+    <nav><a href="/">피드</a><a href="/discovery">둘러보기</a><a href="/media">미디어</a><a href="/promotions">홍보</a></nav>
+  </div></header>
+  <main class="mwrap">
+    <div class="mcard chan-head" id="head">불러오는 중…</div>
+    <div class="mcard"><h2>최신 기사</h2><div class="alist" id="articles"></div></div>
+  </main>
+  <script>window.__cid = {{ channel_id }};</script>
+  <script src="{{ url_for('static', filename='js/media-api.js') }}?v={{ css_v }}"></script>
+  <script src="{{ url_for('static', filename='js/channel.js') }}?v={{ css_v }}"></script>
+</body>
+</html>

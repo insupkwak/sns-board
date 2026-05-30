@@ -1,61 +1,35 @@
-{% extends "base.html" %}
-{% block title %}관리자{% endblock %}
-{% block body_class %}page-body{% endblock %}
-{% block body %}
-<div class="page-wrap wide">
-    <header class="page-header">
-        <a href="/chat" class="icon-btn">←</a>
-        <h1>관리자</h1>
-    </header>
-
-    <div class="summary-grid" id="summaryGrid">
-        <div class="card stat"><div class="stat-num" id="statUsers">-</div><div class="stat-label">사용자</div></div>
-        <div class="card stat"><div class="stat-num" id="statRooms">-</div><div class="stat-label">채팅방</div></div>
-        <div class="card stat"><div class="stat-num" id="statMessages">-</div><div class="stat-label">메시지</div></div>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>관리자 · 게시판</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ css_v }}">
+</head>
+<body>
+  <header class="mtop"><div class="mtop-inner">
+    <a class="logo" href="/">게시판</a>
+    <nav><a href="/">피드</a><a href="/discovery">둘러보기</a><a href="/media">미디어</a><a href="/admin" class="active">관리자</a></nav>
+  </div></header>
+  <main class="mwrap">
+    <div id="gate" class="mcard" hidden><p class="muted">관리자만 접근할 수 있습니다. 게시판에서 관리자 계정으로 로그인하세요.</p></div>
+    <div id="panel" hidden>
+      <div class="mstat-grid">
+        <div class="mstat"><div class="n" id="sUsers">-</div><div class="l">사용자</div></div>
+        <div class="mstat"><div class="n" id="sPosts">-</div><div class="l">게시글</div></div>
+        <div class="mstat"><div class="n" id="sOrgs">-</div><div class="l">조직</div></div>
+        <div class="mstat"><div class="n" id="sChannels">-</div><div class="l">채널</div></div>
+        <div class="mstat"><div class="n" id="sArticles">-</div><div class="l">기사</div></div>
+        <div class="mstat"><div class="n" id="sPromo">-</div><div class="l">홍보 대기</div></div>
+        <div class="mstat"><div class="n" id="sReports">-</div><div class="l">신고 대기</div></div>
+        <div class="mstat"><div class="n" id="sOfficial">-</div><div class="l">공식 채널</div></div>
+      </div>
+      <div class="mcard"><h2>조직 인증 검수</h2><div class="alist" id="orgs"></div></div>
+      <div class="mcard"><h2>홍보 검수 (대기)</h2><div class="alist" id="promos"></div></div>
+      <div class="mcard"><h2>신고 처리 (대기)</h2><div class="alist" id="reports"></div></div>
     </div>
-
-    <div class="card">
-        <h2>공지방 생성</h2>
-        <form id="noticeForm" class="notice-form">
-            <input type="text" id="noticeName" placeholder="공지방 이름" value="공지">
-            <textarea id="noticeMessage" rows="2" placeholder="공지 메시지 (선택)"></textarea>
-            <button type="submit" class="btn-primary">공지방 만들기</button>
-        </form>
-    </div>
-
-    <div class="card">
-        <h2>사용자 목록</h2>
-        <div id="adminUsers" class="admin-list"></div>
-    </div>
-
-    <div class="card">
-        <h2>채팅방 목록</h2>
-        <div id="adminRooms" class="admin-list"></div>
-    </div>
-
-    <div class="summary-grid">
-        <div class="card stat"><div class="stat-num" id="statOrgs">-</div><div class="stat-label">조직</div></div>
-        <div class="card stat"><div class="stat-num" id="statPromo">-</div><div class="stat-label">홍보 대기</div></div>
-        <div class="card stat"><div class="stat-num" id="statReports">-</div><div class="stat-label">신고 대기</div></div>
-        <div class="card stat"><div class="stat-num" id="statArticles">-</div><div class="stat-label">기사</div></div>
-    </div>
-
-    <div class="card">
-        <h2>조직 인증 검수</h2>
-        <div id="adminOrgs" class="admin-list"></div>
-    </div>
-
-    <div class="card">
-        <h2>홍보 검수 (대기)</h2>
-        <div id="adminPromos" class="admin-list"></div>
-    </div>
-
-    <div class="card">
-        <h2>신고 처리 (대기)</h2>
-        <div id="adminReports" class="admin-list"></div>
-    </div>
-</div>
-{% endblock %}
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
-{% endblock %}
+  </main>
+  <script src="{{ url_for('static', filename='js/media-api.js') }}?v={{ css_v }}"></script>
+  <script src="{{ url_for('static', filename='js/admin.js') }}?v={{ css_v }}"></script>
+</body>
+</html>

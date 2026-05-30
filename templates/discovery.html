@@ -1,43 +1,38 @@
-{% extends "base.html" %}
-{% block title %}둘러보기{% endblock %}
-{% block body_class %}page-body{% endblock %}
-{% block body %}
-<div class="page-wrap wide">
-  <header class="page-header">
-    <a href="/chat" class="icon-btn">←</a>
-    <h1>둘러보기</h1>
-    <nav class="topnav">
-      <a href="/discovery">둘러보기</a>
-      <a href="/media">미디어</a>
-      <a href="/promotions">홍보</a>
-    </nav>
-  </header>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>둘러보기 · 게시판</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ css_v }}">
+</head>
+<body>
+  <header class="mtop"><div class="mtop-inner">
+    <a class="logo" href="/">게시판</a>
+    <nav><a href="/">피드</a><a href="/discovery" class="active">둘러보기</a><a href="/media">미디어</a><a href="/promotions">홍보</a></nav>
+  </div></header>
 
-  <div class="card">
-    <div class="disc-search">
-      <input type="text" id="discSearch" placeholder="채널 · 언론사 · 키워드 검색">
-      <select id="discSort">
-        <option value="relevance">관련도</option>
-        <option value="popular">인기</option>
-        <option value="new">최신</option>
-        <option value="official">공식</option>
-      </select>
+  <main class="mwrap">
+    <div class="mcard">
+      <div class="disc-search">
+        <input type="text" id="q" placeholder="채널 · 언론사 · 키워드 검색">
+        <select id="sort"><option value="relevance">관련도</option><option value="popular">인기</option><option value="new">최신</option></select>
+      </div>
+      <div class="chips" id="chips"></div>
     </div>
-    <div class="cat-chips" id="catChips"></div>
-  </div>
 
-  <section id="promotedSection" class="card" hidden>
-    <h2>🔹 추천 · 홍보</h2>
-    <div id="promotedList" class="channel-grid"></div>
-  </section>
+    <section class="mcard" id="promotedSec" hidden>
+      <h2>🔹 추천 · 홍보</h2>
+      <div class="cgrid" id="promoted"></div>
+    </section>
 
-  <section class="card">
-    <h2 id="resultsTitle">채널</h2>
-    <div id="resultsList" class="channel-grid"></div>
-  </section>
-</div>
-{% endblock %}
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/api.js') }}"></script>
-<script src="{{ url_for('static', filename='js/discovery.js') }}"></script>
-{% endblock %}
+    <section class="mcard">
+      <h2>채널</h2>
+      <div class="cgrid" id="results"></div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/media-api.js') }}?v={{ css_v }}"></script>
+  <script src="{{ url_for('static', filename='js/discovery.js') }}?v={{ css_v }}"></script>
+</body>
+</html>

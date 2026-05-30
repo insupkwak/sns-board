@@ -1,51 +1,38 @@
-{% extends "base.html" %}
-{% block title %}기사 작성{% endblock %}
-{% block body_class %}page-body{% endblock %}
-{% block body %}
-<div class="page-wrap">
-  <header class="page-header">
-    <a href="/media" class="icon-btn">←</a>
-    <h1>기사 작성</h1>
-  </header>
-
-  <div class="card">
-    <form id="articleForm" class="article-form">
-      <label>발행 채널 (뉴스 채널)</label>
-      <select id="artRoom"></select>
-
-      <label>제목 *</label>
-      <input type="text" id="artTitle" required>
-
-      <label>부제목</label>
-      <input type="text" id="artSubtitle">
-
-      <label>요약</label>
-      <input type="text" id="artSummary">
-
-      <label>본문</label>
-      <textarea id="artBody" rows="10"></textarea>
-
-      <label>카테고리</label>
-      <select id="artCategory"></select>
-
-      <label>태그 (쉼표로 구분)</label>
-      <input type="text" id="artTags" placeholder="해운, 물류, 속보">
-
-      <label>원문 출처 URL</label>
-      <input type="text" id="artSource">
-
-      <label class="checkbox"><input type="checkbox" id="artBreaking"> 속보</label>
-
-      <div class="row-end">
-        <button type="button" id="saveDraft" class="btn-soft inline">임시저장</button>
-        <button type="submit" class="btn-primary">발행</button>
-      </div>
-    </form>
-    <p id="artMsg" class="form-msg"></p>
-  </div>
-</div>
-{% endblock %}
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/api.js') }}"></script>
-<script src="{{ url_for('static', filename='js/article_editor.js') }}"></script>
-{% endblock %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>기사 작성 · 게시판</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ css_v }}">
+</head>
+<body>
+  <header class="mtop"><div class="mtop-inner">
+    <a class="logo" href="/">게시판</a>
+    <nav><a href="/">피드</a><a href="/discovery">둘러보기</a><a href="/media">미디어</a><a href="/promotions">홍보</a></nav>
+  </div></header>
+  <main class="mwrap">
+    <div class="mcard">
+      <h2>기사 작성</h2>
+      <form id="form" class="mform">
+        <label>발행 채널</label><select id="channel"></select>
+        <label>제목 *</label><input type="text" id="title" required>
+        <label>부제목</label><input type="text" id="subtitle">
+        <label>요약</label><input type="text" id="summary">
+        <label>본문</label><textarea id="body" rows="10"></textarea>
+        <label>카테고리</label><select id="category"></select>
+        <label>태그 (쉼표로 구분)</label><input type="text" id="tags" placeholder="해운, 물류">
+        <label>원문 출처 URL</label><input type="text" id="source">
+        <label class="chk"><input type="checkbox" id="breaking"> 속보</label>
+        <div class="row-end">
+          <button type="button" id="draft" class="mbtn ghost">임시저장</button>
+          <button type="submit" class="mbtn">발행</button>
+        </div>
+      </form>
+      <p id="msg" class="mmsg"></p>
+    </div>
+  </main>
+  <script src="{{ url_for('static', filename='js/media-api.js') }}?v={{ css_v }}"></script>
+  <script src="{{ url_for('static', filename='js/article_editor.js') }}?v={{ css_v }}"></script>
+</body>
+</html>

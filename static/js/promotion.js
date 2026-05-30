@@ -1,65 +1,50 @@
-/* promotion.js — 홍보 캠페인 생성/제출/성과 */
+/* promotion.js */
 (() => {
 "use strict";
 const $ = (id) => document.getElementById(id);
-const STATUS = {draft:"초안", pending_review:"검토 대기", approved:"승인(노출중)",
-  rejected:"반려", paused:"일시중지", active:"진행", ended:"종료", suspended:"정지"};
+const ST = {draft:"초안", pending_review:"검토 대기", approved:"승인(노출중)", rejected:"반려", paused:"일시중지"};
 
-async function loadRooms() {
+async function loadChannels() {
   try {
-    const { rooms } = await API.call("/api/rooms");
-    const sel = $("promoRoom"); sel.innerHTML = "";
-    const mine = rooms.filter(r => ["channel","news_channel","discussion","chat"].includes(r.room_type));
-    if (!mine.length) sel.innerHTML = '<option value="">(운영 중인 채널 없음)</option>';
-    mine.forEach(r => { const o=document.createElement("option"); o.value=r.id; o.textContent=r.name; sel.appendChild(o); });
-  } catch (_) {}
+    const { channels } = await API.call("/api/channels/mine");
+    const s = $("channel"); s.innerHTML = "";
+    if (!channels.length) s.innerHTML = '<option value="">(채널 없음 — 미디어에서 먼저 생성)</option>';
+    channels.forEach(c => { const o = document.createElement("option"); o.value = c.id; o.textContent = c.name; s.appendChild(o); });
+  } catch (e) { needLogin(e); }
 }
-
 async function loadMine() {
   try {
     const { promotions } = await API.call("/api/promotions/my");
-    const box = $("promoList"); box.innerHTML = "";
+    const box = $("list"); box.innerHTML = "";
     if (!promotions.length) { box.innerHTML = '<p class="muted">캠페인이 없습니다.</p>'; return; }
     for (const p of promotions) {
-      const row = document.createElement("div"); row.className = "admin-row";
       let stats = "";
-      try { const r = await API.call(`/api/promotions/${p.id}/stats`);
-        stats = `노출 ${r.stats.impression} · 클릭 ${r.stats.click} · 입장 ${r.stats.join} · CTR ${r.stats.ctr}%`; } catch(_){}
-      row.innerHTML = `<div class="ar-main"><div>${esc(p.title)} <span class="pill">${STATUS[p.status]||p.status}</span></div>
-        <div class="ar-sub">${esc(p.room_name)} · ${stats}</div>
-        ${p.rejection_reason ? `<div class="ar-sub err">반려: ${esc(p.rejection_reason)}</div>`:''}</div>
-        <div class="promo-btns"></div>`;
-      const btns = row.querySelector(".promo-btns");
-      if (p.status === "draft") {
-        const b = document.createElement("button"); b.className="btn-primary sm"; b.textContent="검수 신청";
-        b.addEventListener("click", async ()=>{ try{ await API.call(`/api/promotions/${p.id}/submit`,"POST"); toast("검수 신청 완료","success"); loadMine(); }catch(e){toast(e.message,"error");} });
-        btns.appendChild(b);
-      } else if (p.status === "approved") {
-        const b = document.createElement("button"); b.className="btn-ghost"; b.textContent="일시중지";
-        b.addEventListener("click", async ()=>{ try{ await API.call(`/api/promotions/${p.id}/pause`,"POST"); loadMine(); }catch(e){toast(e.message,"error");} });
-        btns.appendChild(b);
-      } else if (p.status === "paused") {
-        const b = document.createElement("button"); b.className="btn-ghost"; b.textContent="재개";
-        b.addEventListener("click", async ()=>{ try{ await API.call(`/api/promotions/${p.id}/resume`,"POST"); loadMine(); }catch(e){toast(e.message,"error");} });
-        btns.appendChild(b);
-      }
+      try { const r = await API.call(`/api/promotions/${p.id}/stats`); stats = `노출 ${r.stats.impression} · 클릭 ${r.stats.click} · CTR ${r.stats.ctr}%`; } catch(_){}
+      const row = document.createElement("div"); row.className = "mrow";
+      row.innerHTML = `<div class="main"><div>${esc(p.title)} <span class="pill">${ST[p.status]||p.status}</span></div>
+        <div class="sub">${esc(p.channel_name)} · ${stats}</div>
+        ${p.rejection_reason ? `<div class="sub err">반려: ${esc(p.rejection_reason)}</div>` : ''}</div>`;
+      if (p.status === "draft") row.appendChild(btn("검수 신청", `/api/promotions/${p.id}/submit`, "검수 신청 완료"));
+      else if (p.status === "approved") row.appendChild(btn("일시중지", `/api/promotions/${p.id}/pause`, "일시중지됨", true));
+      else if (p.status === "paused") row.appendChild(btn("재개", `/api/promotions/${p.id}/resume`, "재개됨", true));
       box.appendChild(row);
     }
-  } catch (e) { toast(e.message, "error"); }
+  } catch (e) { needLogin(e) || toast(e.message, "error"); }
 }
-
-$("promoForm").addEventListener("submit", async (e) => {
+function btn(label, url, okmsg, ghost) {
+  const b = document.createElement("button"); b.className = "mbtn" + (ghost ? " ghost" : ""); b.textContent = label;
+  b.onclick = async () => { try { await API.call(url, "POST"); toast(okmsg, "ok"); loadMine(); } catch(e){ toast(e.message,"error"); } };
+  return b;
+}
+$("form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const room_id = $("promoRoom").value, title = $("promoTitle").value.trim();
-  if (!room_id || !title) { $("promoMsg").textContent="채널과 제목을 입력하세요."; $("promoMsg").className="form-msg err"; return; }
+  if (!$("channel").value || !$("title").value.trim()) { $("msg").textContent = "채널과 제목을 입력하세요."; $("msg").className = "mmsg err"; return; }
   try {
-    await API.call("/api/promotions", "POST", {room_id, title,
-      description:$("promoDesc").value.trim(), placement:$("promoPlacement").value});
-    $("promoTitle").value=""; $("promoDesc").value="";
-    $("promoMsg").textContent="캠페인을 만들었습니다. 검수 신청을 누르세요."; $("promoMsg").className="form-msg ok";
-    loadMine();
-  } catch (err) { $("promoMsg").textContent=err.message; $("promoMsg").className="form-msg err"; }
+    await API.call("/api/promotions", "POST", {channel_id: $("channel").value, title: $("title").value.trim(),
+      description: $("desc").value.trim(), placement: $("placement").value});
+    $("title").value = ""; $("desc").value = "";
+    $("msg").textContent = "캠페인 생성됨. 검수 신청을 누르세요."; $("msg").className = "mmsg ok"; loadMine();
+  } catch (e) { if (!needLogin(e)) { $("msg").textContent = e.message; $("msg").className = "mmsg err"; } }
 });
-
-document.addEventListener("DOMContentLoaded", () => { loadRooms(); loadMine(); });
+document.addEventListener("DOMContentLoaded", () => { loadChannels(); loadMine(); });
 })();
