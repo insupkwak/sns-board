@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}홍보 센터{% endblock %}
+{% block body_class %}page-body{% endblock %}
+{% block body %}
+<div class="page-wrap wide">
+  <header class="page-header">
+    <a href="/chat" class="icon-btn">←</a>
+    <h1>홍보 센터</h1>
+    <nav class="topnav"><a href="/discovery">둘러보기</a><a href="/media">미디어</a><a href="/promotions">홍보</a></nav>
+  </header>
+
+  <div class="card">
+    <h2>홍보 캠페인 만들기</h2>
+    <form id="promoForm" class="article-form">
+      <label>내 채널 *</label>
+      <select id="promoRoom"></select>
+      <label>홍보 제목 *</label>
+      <input type="text" id="promoTitle" required>
+      <label>홍보 설명</label>
+      <input type="text" id="promoDesc">
+      <label>노출 위치</label>
+      <select id="promoPlacement">
+        <option value="search_top">검색 상단</option>
+        <option value="discovery_banner">둘러보기 배너</option>
+        <option value="category_top">카테고리 상단</option>
+        <option value="home_featured">홈 추천</option>
+      </select>
+      <div class="row-end"><button type="submit" class="btn-primary">캠페인 생성</button></div>
+    </form>
+    <p id="promoMsg" class="form-msg"></p>
+  </div>
+
+  <div class="card">
+    <h2>내 홍보 캠페인</h2>
+    <div id="promoList" class="admin-list"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/api.js') }}"></script>
+<script src="{{ url_for('static', filename='js/promotion.js') }}"></script>
+{% endblock %}

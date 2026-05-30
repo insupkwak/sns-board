@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}기사{% endblock %}
+{% block body_class %}page-body{% endblock %}
+{% block body %}
+<div class="page-wrap">
+  <header class="page-header">
+    <a href="/discovery" class="icon-btn">←</a>
+    <h1>기사</h1>
+  </header>
+  <article class="card article-detail" id="articleDetail">불러오는 중…</article>
+</div>
+<script>window.__articleId = {{ article_id }};</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/api.js') }}"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const aid = window.__articleId;
+  let liked = false;
+  async function load() {
+    try {
+      const { article: a, liked: lk } = await API.call(`/api/articles/${aid}`);
+      liked = lk;
+      const s = a.stats || {};
+      $("articleDetail").innerHTML = `
+        ${a.is_breaking ? '<span class="breaking">속보</span>' : ''}
+        <h2 class="ad-title">${esc(a.title)}</h2>
+        ${a.subtitle ? `<div class="ad-sub">${esc(a.subtitle)}</div>` : ''}
+        <div class="ad-meta">${esc(a.org_name||'')} ${esc(a.author_name)} · ${esc(a.published_at||a.created_at)} · 조회 ${s.view_count||0}</div>
+        ${a.cover_image_url ? `<img class="ad-cover" src="${esc(a.cover_image_url)}">` : ''}
+        ${a.summary ? `<p class="ad-summary">${esc(a.summary)}</p>` : ''}
+        <div class="ad-body">${esc(a.body||'').replace(/\\n/g,'<br>')}</div>
+        ${a.source_url ? `<p class="ad-source">원문: <a href="${esc(a.source_url)}" target="_blank">${esc(a.source_url)}</a></p>` : ''}
+        <div class="ad-tags">${(a.tags||[]).map(t=>`<span class="tag">#${esc(t)}</span>`).join(' ')}</div>
+        <div class="ad-actions">
+          <button id="likeBtn" class="btn-soft inline">♥ 좋아요 <b id="likeCount">${s.like_count||0}</b></button>
+          <button id="shareBtn" class="btn-soft inline">공유 <b id="shareCount">${s.share_count||0}</b></button>
+          <button id="reportBtn" class="btn-ghost">신고</button>
+          ${a.room_id ? `<a class="btn-soft inline" href="/channel/${a.room_id}">채널로</a>` : ''}
+        </div>`;
+      if (liked) $("likeBtn").classList.add("liked");
+      $("likeBtn").addEventListener("click", like);
+      $("shareBtn").addEventListener("click", share);
+      $("reportBtn").addEventListener("click", report);
+    } catch (e) { $("articleDetail").textContent = e.message; }
+  }
+  async function like() {
+    try { const r = await API.call(`/api/articles/${aid}/like`, "POST");
+      $("likeCount").textContent = r.like_count; $("likeBtn").classList.toggle("liked", r.liked); }
+    catch (e) { (e.message||'').includes('로그인') ? location.href='/login' : toast(e.message,'error'); }
+  }
+  async function share() {
+    try { await API.call(`/api/articles/${aid}/share`, "POST");
+      $("shareCount").textContent = (+$("shareCount").textContent)+1;
+      navigator.clipboard?.writeText(location.href); toast("링크를 복사했습니다.", "success"); }
+    catch (e) { toast(e.message, "error"); }
+  }
+  async function report() {
+    const reason = prompt("신고 사유 (fake_news, copyright, abuse 등)", "fake_news");
+    if (!reason) return;
+    try { await API.call(`/api/articles/${aid}/report`, "POST", {reason}); toast("신고 접수", "success"); }
+    catch (e) { toast(e.message, "error"); }
+  }
+  document.addEventListener("DOMContentLoaded", load);
+})();
+</script>
+{% endblock %}

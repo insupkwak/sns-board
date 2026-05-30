@@ -70,7 +70,68 @@ $("noticeForm").addEventListener("submit", async (e) => {
   } catch (err) { toast(err.message, "err"); }
 });
 
+// ---- 3차: 미디어 운영 ----
+async function loadMediaSummary() {
+  const { summary } = await api("/api/admin/media-summary");
+  $("statOrgs").textContent = summary.organizations;
+  $("statPromo").textContent = summary.pending_promotions;
+  $("statReports").textContent = summary.pending_reports;
+  $("statArticles").textContent = summary.articles;
+}
+
+const VS = {pending:"검수중", verified:"인증완료", rejected:"반려", suspended:"정지"};
+async function loadOrgs() {
+  const { organizations } = await api("/api/admin/organizations");
+  const box = $("adminOrgs"); box.innerHTML = "";
+  if (!organizations.length) { box.innerHTML='<p class="muted">조직이 없습니다.</p>'; return; }
+  organizations.forEach(o => {
+    const row = document.createElement("div"); row.className="admin-row";
+    row.innerHTML = `<div class="ar-main"><div>${esc(o.name)} <span class="pill">${VS[o.verification_status]||o.verification_status}</span></div>
+      <div class="ar-sub">${esc(o.org_type)}</div></div>`;
+    if (o.verification_status !== "verified") {
+      const v=document.createElement("button"); v.className="btn-primary sm"; v.textContent="인증";
+      v.addEventListener("click", async()=>{ await api(`/api/admin/organizations/${o.id}/verify`,"POST"); loadOrgs(); loadMediaSummary(); toast("인증 완료","ok"); });
+      const r=document.createElement("button"); r.className="btn-ghost"; r.textContent="반려";
+      r.addEventListener("click", async()=>{ await api(`/api/admin/organizations/${o.id}/reject`,"POST"); loadOrgs(); });
+      row.appendChild(v); row.appendChild(r);
+    }
+    box.appendChild(row);
+  });
+}
+
+async function loadPromos() {
+  const { promotions } = await api("/api/admin/promotions");
+  const box = $("adminPromos"); box.innerHTML="";
+  if (!promotions.length) { box.innerHTML='<p class="muted">대기 중인 홍보가 없습니다.</p>'; return; }
+  promotions.forEach(p => {
+    const row=document.createElement("div"); row.className="admin-row";
+    row.innerHTML=`<div class="ar-main"><div>${esc(p.title)}</div><div class="ar-sub">채널: ${esc(p.room_name)} · 위치: ${esc(p.placement)}</div></div>`;
+    const a=document.createElement("button"); a.className="btn-primary sm"; a.textContent="승인";
+    a.addEventListener("click", async()=>{ await api(`/api/admin/promotions/${p.id}/approve`,"POST"); loadPromos(); loadMediaSummary(); toast("승인됨(노출 시작)","ok"); });
+    const r=document.createElement("button"); r.className="btn-ghost"; r.textContent="반려";
+    r.addEventListener("click", async()=>{ const reason=prompt("반려 사유","홍보 정책 위반")||""; await api(`/api/admin/promotions/${p.id}/reject`,"POST",{reason}); loadPromos(); loadMediaSummary(); });
+    row.appendChild(a); row.appendChild(r);
+    box.appendChild(row);
+  });
+}
+
+async function loadReports() {
+  const { reports } = await api("/api/admin/reports");
+  const box=$("adminReports"); box.innerHTML="";
+  if (!reports.length) { box.innerHTML='<p class="muted">대기 중인 신고가 없습니다.</p>'; return; }
+  reports.forEach(rp => {
+    const row=document.createElement("div"); row.className="admin-row";
+    row.innerHTML=`<div class="ar-main"><div>${esc(rp.target_type)} #${rp.target_id} · ${esc(rp.reason)}</div>
+      <div class="ar-sub">신고자: ${esc(rp.reporter)} · ${esc(rp.created_at)}${rp.detail?' · '+esc(rp.detail):''}</div></div>`;
+    const h=document.createElement("button"); h.className="btn-primary sm"; h.textContent="처리완료";
+    h.addEventListener("click", async()=>{ await api(`/api/admin/reports/${rp.id}/handle`,"POST",{status:"resolved"}); loadReports(); loadMediaSummary(); });
+    row.appendChild(h);
+    box.appendChild(row);
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   loadSummary().catch(()=>{}); loadUsers().catch(()=>{}); loadRooms().catch(()=>{});
+  loadMediaSummary().catch(()=>{}); loadOrgs().catch(()=>{}); loadPromos().catch(()=>{}); loadReports().catch(()=>{});
 });
 })();

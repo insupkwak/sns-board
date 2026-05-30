@@ -297,6 +297,71 @@ a { color: var(--accent); text-decoration: none; }
 .toast.ok { border-color: var(--success); }
 .toast.err { border-color: var(--danger); }
 
+/* ---------- 3차: 미디어 플랫폼 ---------- */
+.topnav { margin-left: auto; display: flex; gap: 14px; }
+.topnav a { color: var(--text-sub); font-size: 14px; }
+.topnav a:hover { color: var(--accent); }
+.muted { color: var(--text-muted); }
+.btn-soft.inline, .btn-primary.inline { width: auto; display: inline-flex; align-items: center; }
+.checkbox { display: flex; align-items: center; gap: 8px; flex-direction: row !important; }
+.checkbox input { width: auto; }
+
+.disc-search { display: flex; gap: 8px; margin-bottom: 10px; }
+.disc-search input { flex: 1; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 11px 12px; border-radius: var(--radius-md); font-size: 16px; }
+.disc-search select { background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 0 10px; border-radius: var(--radius-md); }
+.cat-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-sub); padding: 6px 12px; border-radius: 16px; font-size: 13px; }
+.chip.active { background: var(--accent); border-color: var(--accent); color: #04263a; font-weight: 700; }
+
+.channel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.channel-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; display: flex; flex-direction: column; }
+.channel-card.promoted { border-color: var(--accent); }
+.cc-cover { height: 84px; background: var(--bg-input); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 28px; overflow: hidden; }
+.cc-cover img { width: 100%; height: 100%; object-fit: cover; }
+.cc-body { padding: 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.cc-title { font-weight: 700; }
+.cc-org { font-size: 12px; color: var(--text-sub); }
+.cc-desc { font-size: 13px; color: var(--text-sub); flex: 1; }
+.cc-foot { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
+.ofc-badge { background: var(--accent); color: #04263a; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; }
+.sponsored { background: var(--warning); color: #3a2a04; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; }
+.breaking { background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 8px; }
+
+.channel-head { display: flex; gap: 16px; }
+.ch-cover { width: 120px; height: 120px; background: var(--bg-input); border-radius: var(--radius-md); flex: 0 0 auto; overflow: hidden; }
+.ch-cover img { width: 100%; height: 100%; object-fit: cover; }
+.ch-meta { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.ch-name { font-size: 20px; font-weight: 800; }
+.ch-sub { color: var(--text-sub); font-size: 13px; }
+.ch-stats { color: var(--text-muted); font-size: 13px; }
+.ch-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+.article-list { display: flex; flex-direction: column; }
+.article-row { display: block; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.article-row:hover { background: rgba(255,255,255,.03); }
+.ar-title { font-weight: 600; }
+.ar-sub { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+.ar-sub.err { color: var(--danger); }
+
+.article-form { display: flex; flex-direction: column; gap: 6px; }
+.article-form label { font-size: 12px; color: var(--text-sub); margin-top: 8px; }
+.article-form input, .article-form textarea, .article-form select {
+  background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main);
+  padding: 10px 12px; border-radius: var(--radius-md); font-size: 15px; font-family: inherit;
+}
+
+.article-detail .ad-title { font-size: 24px; margin: 6px 0; }
+.ad-sub { color: var(--text-sub); font-size: 16px; margin-bottom: 6px; }
+.ad-meta { color: var(--text-muted); font-size: 13px; margin-bottom: 12px; }
+.ad-cover { width: 100%; border-radius: var(--radius-md); margin-bottom: 12px; }
+.ad-summary { font-size: 16px; color: var(--text-sub); margin-bottom: 12px; }
+.ad-body { line-height: 1.8; margin-bottom: 14px; }
+.ad-source { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; }
+.ad-tags .tag { color: var(--accent); font-size: 13px; margin-right: 6px; }
+.ad-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.ad-actions .liked { color: var(--like, #e23b3b); border-color: var(--danger); }
+.promo-btns { display: flex; gap: 6px; }
+
 /* ---------- 모바일 ---------- */
 .mobile-only { display: none; }
 @media (max-width: 768px) {

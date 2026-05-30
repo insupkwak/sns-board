@@ -32,6 +32,28 @@
         <h2>채팅방 목록</h2>
         <div id="adminRooms" class="admin-list"></div>
     </div>
+
+    <div class="summary-grid">
+        <div class="card stat"><div class="stat-num" id="statOrgs">-</div><div class="stat-label">조직</div></div>
+        <div class="card stat"><div class="stat-num" id="statPromo">-</div><div class="stat-label">홍보 대기</div></div>
+        <div class="card stat"><div class="stat-num" id="statReports">-</div><div class="stat-label">신고 대기</div></div>
+        <div class="card stat"><div class="stat-num" id="statArticles">-</div><div class="stat-label">기사</div></div>
+    </div>
+
+    <div class="card">
+        <h2>조직 인증 검수</h2>
+        <div id="adminOrgs" class="admin-list"></div>
+    </div>
+
+    <div class="card">
+        <h2>홍보 검수 (대기)</h2>
+        <div id="adminPromos" class="admin-list"></div>
+    </div>
+
+    <div class="card">
+        <h2>신고 처리 (대기)</h2>
+        <div id="adminReports" class="admin-list"></div>
+    </div>
 </div>
 {% endblock %}
 {% block scripts %}

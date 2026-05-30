@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}미디어 대시보드{% endblock %}
+{% block body_class %}page-body{% endblock %}
+{% block body %}
+<div class="page-wrap wide">
+  <header class="page-header">
+    <a href="/chat" class="icon-btn">←</a>
+    <h1>미디어 대시보드</h1>
+    <nav class="topnav"><a href="/discovery">둘러보기</a><a href="/media">미디어</a><a href="/promotions">홍보</a></nav>
+  </header>
+
+  <div class="card">
+    <h2>1. 조직(언론사/방송사/기업) 만들기</h2>
+    <form id="orgForm" class="article-form">
+      <label>조직명 *</label><input type="text" id="orgName" required>
+      <label>유형</label>
+      <select id="orgType">
+        <option value="media">언론사</option><option value="broadcast">방송사</option>
+        <option value="company">기업</option><option value="public_agency">공공기관</option>
+        <option value="creator_group">크리에이터</option>
+      </select>
+      <label>소개</label><input type="text" id="orgDesc">
+      <div class="row-end"><button type="submit" class="btn-primary">조직 생성</button></div>
+    </form>
+    <div id="orgList" class="admin-list"></div>
+  </div>
+
+  <div class="card">
+    <h2>2. 채널 만들기</h2>
+    <form id="chForm" class="article-form">
+      <label>채널 이름 *</label><input type="text" id="chName" required>
+      <label>유형</label>
+      <select id="chType">
+        <option value="news_channel">뉴스 채널</option>
+        <option value="channel">공식 채널</option>
+        <option value="discussion">토론방</option>
+      </select>
+      <label>소속 조직</label><select id="chOrg"></select>
+      <label>카테고리</label><select id="chCat"></select>
+      <label>소개</label><input type="text" id="chDesc">
+      <div class="row-end"><button type="submit" class="btn-primary">채널 생성</button></div>
+    </form>
+    <div id="chList" class="admin-list"></div>
+  </div>
+
+  <div class="card">
+    <h2>3. 기사</h2>
+    <a class="btn-primary inline" href="/article/new">＋ 기사 작성</a>
+    <div id="artList" class="admin-list" style="margin-top:12px"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/api.js') }}"></script>
+<script src="{{ url_for('static', filename='js/media_dashboard.js') }}"></script>
+{% endblock %}
